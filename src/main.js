@@ -1,20 +1,24 @@
 const { app, BrowserWindow, Tray, Menu, nativeImage } = require('electron');
 const path = require('path');
+const fs = require('fs');
+
+// 設定ファイル読み込み
+const config = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8'));
 
 let mainWindow;
 let tray;
 let isWindowVisible = true;
 
 function createWindow() {
-    // メインウィンドウを作成（開発モード用に幅を拡大）
+    // 設定ファイルからウィンドウ設定を読み込み
     mainWindow = new BrowserWindow({
-        width: 900, // 開発用に600pxに拡大
-        height: 800,
-        x: 1020, // 中央寄りに配置
-        y: 50,
-        resizable: true, // 開発時はリサイズ可能
-        alwaysOnTop: true,
-        frame: true, // タイトルバー表示
+        width: config.window.width,
+        height: config.window.height,
+        x: config.window.x,
+        y: config.window.y,
+        resizable: config.window.resizable,
+        alwaysOnTop: config.window.alwaysOnTop,
+        frame: config.window.frame,
         webPreferences: {
             nodeIntegration: true,
             contextIsolation: false,
@@ -22,11 +26,13 @@ function createWindow() {
         }
     });
 
-    // HTMLファイルを読み込み
-    mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+    // 設定ファイルからWebアプリURLを読み込み
+    mainWindow.loadFile(path.join(__dirname, config.webapp_url));
     
-    // 開発者ツールを開く（デバッグ用）
-    mainWindow.webContents.openDevTools();
+    // 開発者ツール（設定による）
+    if (config.development.devTools) {
+        mainWindow.webContents.openDevTools();
+    }
 
     // ウィンドウが閉じられる時は隠すだけ
     mainWindow.on('close', (event) => {
@@ -85,7 +91,7 @@ function createTray() {
     ]);
     
     tray.setContextMenu(contextMenu);
-    tray.setToolTip('Claude Code Helper v1.02');
+    tray.setToolTip(config.tray.tooltip);
     
     // 左クリックでウィンドウ切り替え
     tray.on('click', toggleWindow);

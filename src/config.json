@@ -1,0 +1,19 @@
+{
+  "window": {
+    "width": 900,
+    "height": 800,
+    "x": 1020,
+    "y": 50,
+    "resizable": true,
+    "alwaysOnTop": true,
+    "frame": true
+  },
+  "webapp_url": "./renderer/index.html",
+  "fallback_url": "../novel-ai.html",
+  "tray": {
+    "tooltip": "Claude Code Helper v1.02"
+  },
+  "development": {
+    "devTools": true
+  }
+}
