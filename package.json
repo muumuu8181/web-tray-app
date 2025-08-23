@@ -1,7 +1,7 @@
 {
   "name": "web-tray-app",
-  "version": "1.0.1",
-  "description": "",
+  "version": "1.0.3",
+  "description": "Universal web app tray wrapper with zero-maintenance external app support",
   "main": "src/main.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",

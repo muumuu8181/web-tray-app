@@ -27,10 +27,19 @@ Claude Code Helper をシステムトレイに常駐させるElectronアプリ�
 
 ```
 web-tray-app/
-├── main.js          # Electronメインプロセス
-├── index.html       # レンダラープロセス（GUI）
-├── package.json     # 依存関係とスクリプト
-└── README.md        # このファイル
+├── src/
+│   ├── main.js              # Electronメインプロセス
+│   ├── config.json          # 設定ファイル（ゼロメンテナンス対応）
+│   ├── renderer/
+│   │   ├── index.html       # HTML（シンプル化）
+│   │   ├── style.css        # CSS分離
+│   │   └── script.js        # JavaScript分離
+│   └── assets/              # アイコン等のリソース
+├── docs/
+│   └── README.md            # ドキュメント
+├── package.json             # 依存関係とスクリプト
+├── .gitignore              # Git除外設定
+└── novel-ai.html           # ウェブアプリベース
 ```
 
 ## セットアップ手順
@@ -117,7 +126,14 @@ taskkill /F /IM electron.exe /T
 
 ## バージョン履歴
 
-### v1.02（最新）
+### v1.03（最新）
+- ✅ **ゼロメンテナンス対応**: 外部Webアプリ自動読み込み
+- ✅ **フォルダ構造改善**: src/, docs/ 分離で拡張性向上
+- ✅ **UI/ロジック分離**: HTML/CSS/JavaScript分離
+- ✅ **設定ファイル外部化**: config.json で簡単設定変更
+- ✅ **システムトレイメニュー拡張**: アプリ切り替え機能
+
+### v1.02
 - ✅ クリップボード機能修正
 - ✅ 視覚的フィードバック追加（緑色ボタン効果）
 - ✅ JavaScript構文エラー修正
@@ -131,10 +147,35 @@ taskkill /F /IM electron.exe /T
 ### v1.00
 - ✅ 初期バージョン
 
+## ゼロメンテナンス機能
+
+### 外部Webアプリの読み込み
+
+**1. 設定ファイル変更**
+`src/config.json` の `webapp.type` を変更：
+```json
+{
+  "webapp": {
+    "type": "external",           // "local" → "external" に変更
+    "url": "./renderer/index.html",
+    "external_url": "http://localhost:3000",  // あなたのWebアプリURL
+    "fallback_url": "../novel-ai.html"
+  }
+}
+```
+
+**2. システムトレイから切り替え**
+- システムトレイアイコンを右クリック
+- "Switch to External App" を選択
+- 外部アプリが自動的に読み込まれます
+
+**3. 自動フォールバック**
+外部URLが利用できない場合、自動的にローカルアプリに切り替わります。
+
 ## カスタマイズ
 
 ### プロンプト追加方法
-`index.html` の `prompts` オブジェクトに追加：
+`src/renderer/script.js` の `prompts` オブジェクトに追加：
 ```javascript
 const prompts = {
     'new-prompt': 'カスタムプロンプトテキスト：\n\n',

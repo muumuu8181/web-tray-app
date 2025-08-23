@@ -7,3 +7,15 @@ build/
 .env.local
 *.tmp
 nul
+
+# Electron
+out/
+.webpack/
+
+# Development
+*.old.*
+*_backup.*
+
+# OS
+Thumbs.db
+.DS_Store
