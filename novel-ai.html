@@ -1,0 +1,4041 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title id="app-title">Novel AI プロンプト管理アプリ - 読み込み中</title>
+    
+    <!-- 🎯 バージョン一元管理 -->
+    <script>
+        const APP_VERSION = 'v1.02';
+        const APP_TITLE = '構文エラー段階修正版';
+        
+        // ブラウザサイズ表示機能
+        function updateBrowserSize() {
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            const sizeDisplay = document.getElementById('size-display');
+            if (sizeDisplay) {
+                // 700x1000程度ならタブレット判定
+                const isTablet = (width >= 600 && width <= 900) && (height >= 900 && height <= 1200);
+                const deviceInfo = isTablet ? ' (Tablet)' : '';
+                sizeDisplay.textContent = `${width}×${height}px${deviceInfo} | clip4作成中`;
+            }
+        }
+        
+        // 統合初期化処理（DOMContentLoaded競合解決）
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 統合初期化開始');
+            
+            // Step1: タイトル・バージョン更新
+            document.title = `Novel AI プロンプト管理アプリ ${APP_VERSION} - ${APP_TITLE}`;
+            document.getElementById('app-title').textContent = document.title;
+            
+            // バージョンバッジ更新
+            const versionBadge = document.querySelector('.version-badge');
+            if (versionBadge) {
+                versionBadge.textContent = APP_VERSION;
+            }
+            
+            // サイズ表示初期化
+            updateBrowserSize();
+            
+            console.log('✅ Step1完了: タイトル・バージョン更新');
+            
+            // Step2: Claude Codeタブの動的追加
+            const novelAiTab = document.getElementById('novel-ai-tab');
+            if (novelAiTab) {
+                const claudeCodeTab = document.createElement('div');
+                claudeCodeTab.id = 'claude-code-tab';
+                claudeCodeTab.className = 'tab-content';
+                claudeCodeTab.innerHTML = `
+                    <!-- 💻 プロンプト入力パネル -->
+                    <div style="border: 5px solid #7B68EE; border-radius: 12px; padding: 20px; margin-bottom: 20px; background: linear-gradient(135deg, #f8f6ff 0%, #ede7ff 100%); box-shadow: 0 4px 8px rgba(123, 104, 238, 0.3);">
+                        <h3 style="margin-top: 0; color: #7B68EE; font-size: 1.2em;">💻 プロンプト入力パネル</h3>
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; font-weight: 600; margin-bottom: 5px; color: #444;">プロンプト:</label>
+                            <textarea id="claude-prompt" rows="8" placeholder="Claude Codeで使用するプロンプトを入力..." style="width: 100%; padding: 12px; border: 2px solid #7B68EE; border-radius: 8px; resize: vertical; font-size: 14px;"></textarea>
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; font-weight: 600; margin-bottom: 5px; color: #444;">カテゴリ:</label>
+                            <select id="claude-category" style="width: 100%; padding: 12px; border: 2px solid #7B68EE; border-radius: 8px; font-size: 14px;">
+                                <option value="">選択してください</option>
+                                <option value="コード生成">コード生成</option>
+                                <option value="デバッグ">デバッグ</option>
+                                <option value="レビュー">レビュー</option>
+                                <option value="リファクタリング">リファクタリング</option>
+                                <option value="質問">質問</option>
+                                <option value="その他">その他</option>
+                            </select>
+                        </div>
+                        <button onclick="saveClaude()" style="background: linear-gradient(135deg, #7B68EE 0%, #9370DB 100%); color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">保存</button>
+                    </div>
+                `;
+                
+                novelAiTab.parentNode.insertBefore(claudeCodeTab, novelAiTab.nextSibling);
+                console.log('✅ Step2完了: Claude Codeタブ追加');
+            }
+            
+            // Step3: タブ状態復元
+            setTimeout(() => {
+                const savedTab = localStorage.getItem('currentTab') || 'yarakashi';
+                console.log(`🔄 Step3: タブ状態復元 - ${savedTab}`);
+                switchTab(savedTab);
+                console.log('✅ Step3完了: タブ復元');
+            }, 100);
+        });
+        
+        // ウィンドウリサイズ時にサイズ更新
+        window.addEventListener('resize', updateBrowserSize);
+        
+        // タブ切り替え機能
+        function switchTab(tabName) {
+            console.log('🔄 タブ切り替え:', tabName);
+            
+            // 全てのタブコンテンツを非表示
+            const allTabs = document.querySelectorAll('.tab-content');
+            allTabs.forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // 全てのタブボタンを非アクティブ
+            const allButtons = document.querySelectorAll('.tab-button');
+            allButtons.forEach(button => {
+                button.classList.remove('active');
+            });
+            
+            // 指定されたタブを表示
+            const targetTab = document.getElementById(tabName + '-tab');
+            const targetButton = document.querySelector(`[data-tab="${tabName}"]`);
+            
+            if (targetTab) {
+                targetTab.classList.add('active');
+                console.log('✅ タブ表示:', tabName);
+            } else {
+                console.error('❌ タブが見つかりません:', tabName);
+            }
+            
+            if (targetButton) {
+                targetButton.classList.add('active');
+                console.log('✅ ボタンアクティブ:', tabName);
+            } else {
+                console.error('❌ ボタンが見つかりません:', tabName);
+            }
+            
+            // タブ状態を保存
+            localStorage.setItem('currentTab', tabName);
+        }
+    </script>
+    
+    <!-- 🔥 Firebase Test Integration - Phase 1-2 -->
+    <script type="module">
+        // Firebase SDK読み込み（テスト用）
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js';
+        import { getDatabase, ref, onValue, set, push, get } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js';
+        import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js';
+
+        // Firebase設定（前任者から継承）
+        const firebaseConfig = {
+            apiKey: "AIzaSyA5PXKChizYDCXF_GJ4KL6Ylq9K5hCPXWE",
+            authDomain: "shares-b1b97.firebaseapp.com",
+            databaseURL: "https://shares-b1b97-default-rtdb.firebaseio.com",
+            projectId: "shares-b1b97",
+            storageBucket: "shares-b1b97.firebasestorage.app",
+            messagingSenderId: "38311063248",
+            appId: "1:38311063248:web:0d2d5726d12b305b24b8d5"
+        };
+
+        console.log('🔥 Firebase Test Phase 1-2 開始');
+        console.log('🌐 Protocol:', window.location.protocol);
+        console.log('🌐 Host:', window.location.host);
+        
+        try {
+            // Firebase初期化テスト
+            const app = initializeApp(firebaseConfig);
+            const database = getDatabase(app);
+            const auth = getAuth(app);
+            const googleProvider = new GoogleAuthProvider();
+            
+            console.log('✅ Firebase SDK初期化成功');
+            console.log('✅ Database接続準備完了');
+            console.log('✅ Auth接続準備完了');
+            
+            // Phase1-3: 認証状態監視（テスト用）
+            let currentUser = null;
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    console.log('🔐 ユーザーログイン確認:', user.email);
+                    currentUser = user;
+                    window.updateAuthUI(true);
+                } else {
+                    console.log('🔐 ユーザーログアウト状態');
+                    currentUser = null;
+                    window.updateAuthUI(false);
+                }
+            });
+            
+            // グローバルアクセス用（テスト用のみ）
+            window.firebaseTest = {
+                app,
+                database,
+                auth,
+                googleProvider,
+                ref,
+                set,
+                get,
+                signIn: () => signInWithPopup(auth, googleProvider),
+                signOut: () => signOut(auth),
+                getCurrentUser: () => currentUser,
+                // Phase1-4: 簡単なDB操作関数追加（修正版：Firebase UIDを使用）
+                saveTestData: async (data) => {
+                    if (!currentUser) {
+                        throw new Error('ログインが必要です');
+                    }
+                    const userId = currentUser.uid; // UID使用に変更
+                    const testRef = ref(database, `users/${userId}/novel_ai_prompts/test_data`);
+                    await set(testRef, {
+                        ...data,
+                        timestamp: new Date().toISOString(),
+                        userEmail: currentUser.email,
+                        userId: currentUser.uid
+                    });
+                },
+                loadTestData: async () => {
+                    if (!currentUser) {
+                        throw new Error('ログインが必要です');
+                    }
+                    const userId = currentUser.uid; // UID使用に変更
+                    const testRef = ref(database, `users/${userId}/novel_ai_prompts/test_data`);
+                    const snapshot = await get(testRef);
+                    return snapshot.exists() ? snapshot.val() : null;
+                },
+                initialized: true,
+                phase: 'Phase1-4',
+                safeMode: true
+            };
+            
+            console.log('🔥 Firebase Test Phase1-4 - DB読み書きテスト準備完了。');
+            console.log('⚠️  注意: メインアプリはまだlocalStorageを使用中（Firebaseデータは表示されません）');
+            
+        } catch (error) {
+            console.error('❌ Firebase初期化エラー:', error);
+            window.firebaseTest = { error: error.message, initialized: false };
+        }
+        
+        // Phase1-3: UI更新関数（グローバルスコープ）
+        window.updateAuthUI = function(isLoggedIn) {
+            const authStatus = document.getElementById('auth-status');
+            const loginBtn = document.getElementById('login-btn');
+            const logoutBtn = document.getElementById('logout-btn');
+            
+            if (authStatus && loginBtn && logoutBtn) {
+                if (isLoggedIn) {
+                    authStatus.textContent = `✅ ログイン中: ${window.firebaseTest.getCurrentUser().email}`;
+                    authStatus.style.color = 'green';
+                    loginBtn.style.display = 'none';
+                    logoutBtn.style.display = 'inline-block';
+                    
+                    // ログイン時にやらかしリスト、課題リスト、Claude プロンプトを自動読み込み
+                    setTimeout(() => {
+                        window.loadYarakashiList();
+                        window.loadIssuesList();
+                        window.loadClaudePrompts();
+                    }, 1000);
+                    
+                } else {
+                    authStatus.textContent = '🔐 ログアウト状態';
+                    authStatus.style.color = 'orange';
+                    loginBtn.style.display = 'inline-block';
+                    logoutBtn.style.display = 'none';
+                    
+                    // ログアウト時にやらかしリスト、課題リスト、Claudeプロンプトをクリア
+                    yarakashiList = [];
+                    issuesList = [];
+                    claudePrompts = [];
+                    window.yarakashiList = yarakashiList;
+                    window.issuesList = issuesList;
+                    window.claudePrompts = claudePrompts;
+                    displayYarakashiList();
+                    displayIssuesList();
+                    displayClaudePrompts();
+                }
+            }
+        }
+        
+        // Phase1-3: 認証テスト関数（グローバルスコープ）
+        window.testLogin = async function() {
+            try {
+                console.log('🔐 Google認証テスト開始');
+                
+                // Protocol確認
+                if (window.location.protocol === 'file:') {
+                    console.log('⚠️  file://プロトコルで実行中');
+                    alert('⚠️ Firebase認証にはHTTP/HTTPSが必要です\n\n次の手順をお試しください:\n1. Windowsでコマンドプロンプトを開く\n2. テストフォルダに移動\n3. python -m http.server 8083\n4. http://localhost:8083/test.html でアクセス');
+                    return;
+                }
+                
+                await window.firebaseTest.signIn();
+                console.log('✅ ログイン成功');
+            } catch (error) {
+                console.error('❌ ログインエラー:', error.message);
+                if (error.message.includes('auth/unauthorized-domain')) {
+                    alert('🔧 Firebase設定でドメインの承認が必要です。\n現在のドメイン: ' + window.location.origin);
+                } else {
+                    alert('ログインエラー: ' + error.message);
+                }
+            }
+        };
+        
+        window.testLogout = async function() {
+            try {
+                console.log('🔐 ログアウトテスト開始');
+                await window.firebaseTest.signOut();
+                console.log('✅ ログアウト成功');
+            } catch (error) {
+                console.error('❌ ログアウトエラー:', error.message);
+            }
+        };
+        
+        // タブ切り替え機能（状態記憶付き）
+        let currentTab = localStorage.getItem('currentTab') || 'yarakashi';
+        
+        window.switchTab = function(tabName) {
+            console.log(`🔄 タブ切り替え: ${currentTab} → ${tabName}`);
+            
+            // 全てのタブコンテンツを非表示
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+                tab.style.display = 'none';
+            });
+            
+            // 全てのタブボタンを非アクティブ
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // 指定されたタブをアクティブ
+            const targetTab = document.getElementById(`${tabName}-tab`);
+            const targetButton = document.querySelector(`[data-tab="${tabName}"]`);
+            
+            if (targetTab && targetButton) {
+                targetTab.classList.add('active');
+                targetTab.style.display = 'block';
+                targetButton.classList.add('active');
+                
+                // タブ状態をlocalStorageに保存
+                localStorage.setItem('currentTab', tabName);
+                currentTab = tabName;
+                console.log(`✅ ${tabName}タブに切り替え完了`);
+                
+                // 追加の表示確認ログ
+                console.log(`🔍 ${tabName}-tab 表示状態:`, targetTab.style.display);
+                console.log(`🔍 ${tabName}-tab クラス:`, targetTab.className);
+            } else {
+                console.error(`❌ タブ要素が見つかりません: ${tabName}`);
+                console.log('🔍 利用可能なタブ:', Array.from(document.querySelectorAll('[id$="-tab"]')).map(t => t.id));
+                console.log('🔍 利用可能なボタン:', Array.from(document.querySelectorAll('[data-tab]')).map(b => b.getAttribute('data-tab')));
+                
+                // 要素が見つからない場合の詳細デバッグ情報
+                if (!targetTab) {
+                    console.error(`❌ タブコンテンツ要素が見つかりません: #${tabName}-tab`);
+                }
+                if (!targetButton) {
+                    console.error(`❌ タブボタン要素が見つかりません: [data-tab="${tabName}"]`);
+                }
+                
+                // フォールバック: やらかしタブに切り替え
+                if (tabName !== 'yarakashi') {
+                    console.log('🔄 フォールバック: やらかしタブに切り替え');
+                    setTimeout(() => window.switchTab('yarakashi'), 100);
+                }
+            }
+        };
+        
+        // ページ読み込み時の統一初期化処理（v0.95修正版）
+        
+        // 🔍 共通検索関数（車輪の再発明解消）
+        window.universalSearch = function(dataArray, searchQuery, searchFields) {
+            if (!searchQuery || !searchQuery.trim()) {
+                return [...dataArray];
+            }
+            
+            const query = searchQuery.trim().toLowerCase();
+            console.log(`🔍 共通検索実行: "${query}" in fields:`, searchFields);
+            
+            return dataArray.filter(item => 
+                searchFields.some(field => {
+                    const value = item[field] || '';
+                    return value.toString().toLowerCase().includes(query);
+                })
+            );
+        };
+        
+        // やらかしリスト管理機能
+        let yarakashiList = [];
+        window.yarakashiList = yarakashiList;
+        
+        window.addYarakashi = async function() {
+            try {
+                const title = document.getElementById('yarakashi-title').value.trim();
+                const category = document.getElementById('yarakashi-category').value;
+                const content = document.getElementById('yarakashi-content').value.trim();
+                
+                if (!title || !content) {
+                    alert('タイトルと詳細内容を入力してください');
+                    return;
+                }
+                
+                const yarakashi = {
+                    id: `yarakashi_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+                    title,
+                    category,
+                    content,
+                    timestamp: new Date().toISOString(),
+                    resolved: false
+                };
+                
+                console.log('🚨 やらかし追加開始:', yarakashi.title);
+                
+                if (window.firebaseTest && window.firebaseTest.getCurrentUser()) {
+                    const user = window.firebaseTest.getCurrentUser();
+                    const yarakashiRef = window.firebaseTest.ref(window.firebaseTest.database, `users/${user.uid}/yarakashi_list/${yarakashi.id}`);
+                    await window.firebaseTest.set(yarakashiRef, yarakashi);
+                    console.log('✅ Firebase保存成功');
+                }
+                
+                yarakashiList.push(yarakashi);
+                
+                // フォームをクリア
+                document.getElementById('yarakashi-title').value = '';
+                document.getElementById('yarakashi-content').value = '';
+                
+                displayYarakashiList();
+                console.log('✅ やらかし追加完了');
+                
+            } catch (error) {
+                console.error('❌ やらかし追加エラー:', error.message);
+                alert('エラー: ' + error.message);
+            }
+        };
+        
+        window.loadYarakashiList = async function() {
+            try {
+                if (!window.firebaseTest || !window.firebaseTest.getCurrentUser()) {
+                    console.log('⚠️  ログインしていません');
+                    return;
+                }
+                
+                console.log('📖 やらかしリスト読み込み開始');
+                const user = window.firebaseTest.getCurrentUser();
+                const yarakashiRef = window.firebaseTest.ref(window.firebaseTest.database, `users/${user.uid}/yarakashi_list`);
+                const snapshot = await window.firebaseTest.get(yarakashiRef);
+                
+                if (snapshot.exists()) {
+                    const data = snapshot.val();
+                    yarakashiList = Object.values(data).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                    window.yarakashiList = yarakashiList; // グローバル同期
+                    console.log('✅ やらかしリスト読み込み成功:', yarakashiList.length, '件');
+                    console.log('🔍 読み込みデータ:', yarakashiList.map(y => y.title));
+                } else {
+                    yarakashiList = [];
+                    window.yarakashiList = yarakashiList;
+                    console.log('📭 やらかしリストなし');
+                }
+                
+                displayYarakashiList();
+                
+            } catch (error) {
+                console.error('❌ やらかしリスト読み込みエラー:', error.message);
+            }
+        };
+        
+        // 🔍 フィルタリング用の変数
+        let filteredYarakashiList = [...yarakashiList];
+        
+        function displayYarakashiList(searchQuery = '') {
+            console.log('🖼️  displayYarakashiList開始');
+            console.log('🔍 yarakashiList.length:', yarakashiList.length);
+            console.log('🔍 searchQuery:', searchQuery);
+            
+            const listContainer = document.getElementById('yarakashi-list');
+            const totalCountElement = document.getElementById('total-count');
+            const searchResultElement = document.getElementById('yarakashi-search-result');
+            
+            if (!listContainer) {
+                console.error('❌ yarakashi-list要素が見つかりません');
+                return;
+            }
+            
+            // 🔍 検索フィルタリング（共通関数使用）
+            filteredYarakashiList = window.universalSearch(yarakashiList, searchQuery, ['title', 'content', 'category']);
+            
+            // 📊 検索結果表示更新
+            if (totalCountElement) totalCountElement.textContent = filteredYarakashiList.length;
+            if (searchResultElement) {
+                searchResultElement.innerHTML = searchQuery ? 
+                    `検索結果: <span style="color: #2196F3; font-weight: bold;">${filteredYarakashiList.length}</span> 件 / 全 ${yarakashiList.length} 件` :
+                    `全 <span id="total-count">${yarakashiList.length}</span> 件`;
+            }
+            
+            if (filteredYarakashiList.length === 0) {
+                const message = searchQuery ? 
+                    `<div style="text-align: center; padding: 8px; color: #666;">「${searchQuery}」に一致するやらかしが見つかりません</div>` :
+                    '<div style="text-align: center; padding: 8px; color: #666;">やらかしリストは空です</div>';
+                listContainer.innerHTML = message;
+                return;
+            }
+            
+            console.log('🔄 HTML生成開始...');
+            const html = filteredYarakashiList.map((yarakashi, index) => {
+                console.log(`🔍 [${index}] ID: ${yarakashi.id}, Title: ${yarakashi.title}`);
+                
+                const resolveButton = !yarakashi.resolved ? 
+                    '' : 
+                    `<button onclick="unresolveYarakashi('${yarakashi.id}')" style="background: #FF9800; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer;">未解決に戻す</button>`;
+                
+                // HTMLエスケープ処理
+                const escapeHtml = (text) => {
+                    return text.replace(/&/g, '&amp;')
+                              .replace(/</g, '&lt;')
+                              .replace(/>/g, '&gt;')
+                              .replace(/"/g, '&quot;')
+                              .replace(/'/g, '&#39;')
+                              .replace(/`/g, '&#96;');
+                };
+                
+                const safeTitle = escapeHtml(yarakashi.title);
+                const safeCategory = escapeHtml(yarakashi.category);
+                
+                // 📊 コンテンツ統計計算
+                const contentLines = yarakashi.content.split('\n').length;
+                const contentChars = yarakashi.content.length;
+                const firstLine = yarakashi.content.split('\n')[0];
+                const safeFirstLine = escapeHtml(firstLine);
+                
+                // 🔍 コンパクト表示用の要素ID
+                const itemId = yarakashi.id;
+                
+                return `<div class="yarakashi-item ${yarakashi.resolved ? 'resolved' : ''}" data-id="${yarakashi.id}">
+                    <div class="yarakashi-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <div class="yarakashi-title">${safeTitle}</div>
+                        <div class="yarakashi-stats" style="font-size: 11px; color: #999; white-space: nowrap;">
+                            📝 ${contentLines}行 | ${contentChars}文字
+                        </div>
+                    </div>
+                    <div class="yarakashi-meta">
+                        📅 ${new Date(yarakashi.timestamp).toLocaleDateString('ja-JP')} 
+                        📂 ${safeCategory}
+                        ${yarakashi.resolved ? '✅ 解決済み' : '🚨 未解決'}
+                    </div>
+                    <div class="yarakashi-preview" style="color: #666; font-size: 14px; margin: 8px 0;">
+                        ${safeFirstLine}${contentLines > 1 ? ' ...' : ''}
+                    </div>
+                    <div class="yarakashi-actions" style="margin-top: 10px;">
+                        <button onclick="toggleYarakashiContent('${itemId}')" style="background: #2196F3; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; margin-right: 5px;">
+                            <span id="toggle-text-${itemId}">詳細表示</span>
+                        </button>
+                        ${resolveButton}
+                        <button onclick="deleteYarakashi('${yarakashi.id}')" style="background: #f44336; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; margin-left: 5px;">削除</button>
+                    </div>
+                    <div id="full-content-${itemId}" class="yarakashi-full-content" style="display: none; margin-top: 10px; padding: 10px; background: #f9f9f9; border-radius: 6px; font-size: 14px;">
+                        ${escapeHtml(yarakashi.content).replace(/\n/g, '<br>')}
+                    </div>
+                </div>`;
+            }).join('');
+            
+            console.log('🔍 生成されたHTML文字数:', html.length);
+            console.log('🔍 HTML preview:', html.substring(0, 200) + '...');
+            console.log('🔍 Full HTML:', html);
+            
+            listContainer.innerHTML = html;
+            console.log('✅ innerHTML設定完了');
+            
+            // DOM更新後の確認
+            setTimeout(() => {
+                const renderedItems = document.querySelectorAll('.yarakashi-item');
+                console.log('✅ 実際に描画されたアイテム数:', renderedItems.length);
+                console.log('🔍 描画されたアイテム:', Array.from(renderedItems).map(item => item.dataset.id));
+                
+                // より詳細なDOM確認
+                const listContainer = document.getElementById('yarakashi-list');
+                console.log('🔍 listContainer.children.length:', listContainer.children.length);
+                console.log('🔍 listContainer.innerHTML.length:', listContainer.innerHTML.length);
+                console.log('🔍 listContainer styles:', window.getComputedStyle(listContainer));
+                
+                // 個別アイテムの確認
+                for (let i = 0; i < renderedItems.length; i++) {
+                    const item = renderedItems[i];
+                    console.log(`🔍 Item ${i}:`, {
+                        id: item.dataset.id,
+                        display: window.getComputedStyle(item).display,
+                        visibility: window.getComputedStyle(item).visibility,
+                        height: window.getComputedStyle(item).height,
+                        overflow: window.getComputedStyle(item).overflow
+                    });
+                }
+            }, 100);
+        }
+        
+        // 🔍 検索フィルタリング機能
+        window.filterYarakashiList = function() {
+            const searchInput = document.getElementById('yarakashi-search');
+            const searchQuery = searchInput ? searchInput.value.trim() : '';
+            displayYarakashiList(searchQuery);
+        };
+        
+        // 📋 詳細表示トグル機能
+        window.toggleYarakashiContent = function(itemId) {
+            const fullContentElement = document.getElementById(`full-content-${itemId}`);
+            const toggleTextElement = document.getElementById(`toggle-text-${itemId}`);
+            
+            if (!fullContentElement || !toggleTextElement) return;
+            
+            const isHidden = fullContentElement.style.display === 'none';
+            
+            if (isHidden) {
+                fullContentElement.style.display = 'block';
+                toggleTextElement.textContent = '詳細非表示';
+            } else {
+                fullContentElement.style.display = 'none';
+                toggleTextElement.textContent = '詳細表示';
+            }
+        };
+        
+        window.resolveYarakashi = async function(id) {
+            await updateYarakashiStatus(id, true);
+        };
+        
+        window.unresolveYarakashi = async function(id) {
+            await updateYarakashiStatus(id, false);
+        };
+        
+        async function updateYarakashiStatus(id, resolved) {
+            try {
+                const yarakashi = yarakashiList.find(y => y.id == id);
+                if (!yarakashi) return;
+                
+                yarakashi.resolved = resolved;
+                
+                if (window.firebaseTest && window.firebaseTest.getCurrentUser()) {
+                    const user = window.firebaseTest.getCurrentUser();
+                    const yarakashiRef = window.firebaseTest.ref(window.firebaseTest.database, `users/${user.uid}/yarakashi_list/${id}`);
+                    await window.firebaseTest.set(yarakashiRef, yarakashi);
+                }
+                
+                displayYarakashiList();
+                console.log(`✅ やらかし ${resolved ? '解決' : '未解決'}:`, yarakashi.title);
+                
+            } catch (error) {
+                console.error('❌ やらかし状態更新エラー:', error.message);
+            }
+        }
+        
+        window.deleteYarakashi = async function(id) {
+            if (!confirm('このやらかしを削除しますか？')) return;
+            
+            try {
+                yarakashiList = yarakashiList.filter(y => y.id != id);
+                
+                if (window.firebaseTest && window.firebaseTest.getCurrentUser()) {
+                    const user = window.firebaseTest.getCurrentUser();
+                    const yarakashiRef = window.firebaseTest.ref(window.firebaseTest.database, `users/${user.uid}/yarakashi_list/${id}`);
+                    await window.firebaseTest.set(yarakashiRef, null); // Firebaseで削除
+                }
+                
+                displayYarakashiList();
+                console.log('✅ やらかし削除完了');
+                
+            } catch (error) {
+                console.error('❌ やらかし削除エラー:', error.message);
+            }
+        };
+        
+        window.clearAllYarakashi = async function() {
+            if (!confirm('全てのやらかしを削除しますか？この操作は取り消せません。')) return;
+            
+            try {
+                console.log('🗑️  全やらかし削除開始');
+                
+                if (window.firebaseTest && window.firebaseTest.getCurrentUser()) {
+                    const user = window.firebaseTest.getCurrentUser();
+                    const yarakashiListRef = window.firebaseTest.ref(window.firebaseTest.database, `users/${user.uid}/yarakashi_list`);
+                }
+                
+                yarakashiList = [];
+                window.yarakashiList = yarakashiList;
+                displayYarakashiList();
+                console.log('✅ 全やらかし削除完了');
+                alert('✅ 全てのやらかしを削除しました');
+                
+            } catch (error) {
+                alert('❌ 削除エラー: ' + error.message);
+            }
+        };
+        
+        window.addSampleYarakashi = async function() {
+            const samples = [
+                {
+                    title: 'Firebase認証でauth.emailを使用してPERMISSION_DENIED発生',
+                    category: 'firebase',
+                    content: 'Firebase Realtime Databaseのルールが `$uid === auth.uid` なのに、コードで `auth.email` を使用。結果：全てのDB操作でPERMISSION_DENIEDエラー。\n\n修正方法：\n- `auth.email` → `auth.uid` に変更\n- パスも `users/{uid}/` 形式に統一'
+                },
+                {
+                    title: 'ES6モジュールスコープでグローバル関数が未定義',
+                    category: 'ui',
+                    content: '`<script type="module">` 内で定義した関数がonclick属性から呼び出せない。`ReferenceError: testLogin is not defined`\n\n修正方法：\n```javascript\n// ❌ ES6モジュール内の関数は外部からアクセス不可\nfunction testLogin() { ... }\n\n// ✅ windowオブジェクトに明示的に追加\nwindow.testLogin = async function() { ... };\n```'
+                },
+                {
+                    title: 'Firebase IDで小数点を含むIDを使用してパスエラー',
+                    category: 'database',
+                    content: '`Date.now() + Math.random()` で生成したIDに小数点が含まれてFirebaseパスエラー。\n\n修正方法：\n```javascript\n// ❌ 小数点含む\nid: Date.now() + Math.random()\n\n// ✅ 文字列ID\nid: `yarakashi_${Date.now()}_${Math.floor(Math.random() * 10000)}`\n```'
+                }
+            ];
+            
+            for (const sample of samples) {
+                const yarakashi = {
+                    id: `sample_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+                    title: sample.title,
+                    category: sample.category,
+                    content: sample.content,
+                    timestamp: new Date().toISOString(),
+                    resolved: false
+                };
+                
+                if (window.firebaseTest && window.firebaseTest.getCurrentUser()) {
+                    const user = window.firebaseTest.getCurrentUser();
+                    const yarakashiRef = window.firebaseTest.ref(window.firebaseTest.database, `users/${user.uid}/yarakashi_list/${yarakashi.id}`);
+                    await window.firebaseTest.set(yarakashiRef, yarakashi);
+                }
+                
+                yarakashiList.push(yarakashi);
+                
+                // 少し待つ（IDの重複防止）
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            
+            displayYarakashiList();
+            console.log('✅ サンプルやらかし追加完了:', samples.length, '件');
+            alert(`✅ ${samples.length}件のサンプルやらかしを追加しました！`);
+        };
+        
+        // Phase1-4: 簡単なDB読み書きテスト関数
+        window.saveSimpleTest = async function() {
+            try {
+                console.log('💾 Firebase保存テスト開始');
+                const user = window.firebaseTest.getCurrentUser();
+                console.log('🔍 認証ユーザー:', user);
+                console.log('🔍 Firebase UID:', user.uid);
+                console.log('🔍 ユーザーEmail:', user.email);
+                
+                const testData = {
+                    message: "Hello Firebase!",
+                    test_number: Math.floor(Math.random() * 1000),
+                    phase: "Phase1-4"
+                };
+                
+                // 正しいパスでテスト
+                console.log('🔍 保存先パス:', `users/${user.uid}/novel_ai_prompts/test_data`);
+                
+                await window.firebaseTest.saveTestData(testData);
+                console.log('✅ Firebase保存成功:', testData);
+                alert(`✅ Firebase保存成功!\n番号: ${testData.test_number}`);
+                
+            } catch (error) {
+                console.error('❌ Firebase保存エラー:', error.message);
+                console.error('❌ エラー詳細:', error);
+                
+                // 他のパスでテスト試行
+                console.log('🔄 別パスでテスト試行');
+                try {
+                    const { database, ref, set } = window.firebaseTest;
+                    const testRef = ref(database, 'debug_test');
+                    await set(testRef, { test: 'hello', time: Date.now() });
+                    console.log('✅ ルートパス書き込み成功');
+                } catch (rootError) {
+                    console.error('❌ ルートパスも失敗:', rootError.message);
+                }
+                
+                alert('❌ 保存エラー: ' + error.message + '\n詳細はコンソールを確認');
+            }
+        };
+        
+        window.loadSimpleTest = async function() {
+            try {
+                console.log('📖 Firebase読み込みテスト開始');
+                const data = await window.firebaseTest.loadTestData();
+                
+                if (data) {
+                    console.log('✅ Firebase読み込み成功:', data);
+                    alert(`✅ Firebase読み込み成功!\n\nメッセージ: ${data.message}\n番号: ${data.test_number}\n保存日時: ${data.timestamp}`);
+                } else {
+                    console.log('📭 データなし');
+                    alert('📭 保存されたデータがありません\n先に「簡単テスト保存」を実行してください');
+                }
+                
+            } catch (error) {
+                console.error('❌ Firebase読み込みエラー:', error.message);
+                alert('❌ 読み込みエラー: ' + error.message);
+            }
+        };
+    </script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 5px;
+        }
+
+        .container {
+            max-width: 700px;
+            margin: 5px auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .version-badge {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            z-index: 1000;
+        }
+
+        .header {
+            background: linear-gradient(90deg, #4A90E2 0%, #7B68EE 100%);
+            color: white;
+            padding: 8px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 1.6rem;
+            margin: 0;
+        }
+
+        .controls {
+            background: #f8f9fa;
+            padding: 8px 15px;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .unified-prompt-section {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .prompt-row {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            align-items: flex-start;
+        }
+
+        .prompt-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .prompt-field {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            flex: 1;
+        }
+
+        .prompt-field h3 {
+            min-width: 80px;
+            margin: 0;
+            padding-top: 8px;
+            font-size: 0.9rem;
+            color: #333;
+        }
+
+        .unified-prompt {
+            flex: 1;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            resize: vertical;
+            min-height: 60px;
+            transition: border-color 0.3s;
+            font-family: inherit;
+        }
+
+        .unified-prompt.main-prompt {
+            min-height: 120px;
+        }
+
+        .unified-prompt:focus {
+            outline: none;
+            border-color: #4A90E2;
+        }
+
+        .title-section {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .title-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            transition: border-color 0.3s;
+        }
+
+        .title-input:focus {
+            outline: none;
+            border-color: #4A90E2;
+        }
+
+
+        .input-section {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .input-section h3 {
+            margin-bottom: 10px;
+            color: #333;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        textarea::placeholder {
+            color: #f0f0f0;
+            opacity: 0.3;
+        }
+
+        input::placeholder {
+            color: #f0f0f0;
+            opacity: 0.3;
+        }
+
+        .input-with-label {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+        }
+
+        .input-with-label h3 {
+            margin: 0;
+            min-width: 120px;
+            padding-top: 8px;
+            font-size: 0.9rem;
+        }
+
+        .input-with-label textarea {
+            flex: 1;
+        }
+
+        .copy-btn-side {
+            padding: 8px 12px;
+            background: linear-gradient(45deg, #28a745, #20c997);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+            min-width: 40px;
+            height: 40px;
+            margin-top: 2px;
+        }
+
+        .copy-btn-side:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+
+        .save-section {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .save-and-clear-section {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .save-buttons {
+            display: flex;
+            gap: 15px;
+            flex: 1;
+        }
+
+        .btn-save {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            min-width: 150px;
+            flex: 1;
+            max-width: 200px;
+        }
+
+        .btn-clear {
+            padding: 12px 20px;
+            background: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            min-width: 100px;
+        }
+
+        .btn-clear:hover {
+            background: #5a6268;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        .title-input-row {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .title-input-row h3 {
+            margin: 0;
+            min-width: 140px;
+            font-size: 1rem;
+        }
+
+        .title-input-row .title-input {
+            flex: 1;
+        }
+
+        .potion-preview {
+            background: #f8f9fa;
+            border: 2px dashed #28a745;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 10px;
+            min-height: 120px;
+        }
+
+        .potion-preview-content {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .potion-preview-img {
+            width: 120px;
+            height: 120px;
+            object-fit: cover;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            border: 3px solid #28a745;
+            flex-shrink: 0;
+        }
+
+        .potion-preview-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            min-height: 120px;
+            justify-content: center;
+        }
+
+        .potion-preview-info span {
+            font-weight: bold;
+            color: #28a745;
+            font-size: 16px;
+            word-break: break-word;
+        }
+
+        .btn-remove-potion {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            align-self: flex-start;
+            transition: all 0.3s;
+        }
+
+        .btn-remove-potion:hover {
+            background: #c82333;
+            transform: scale(1.05);
+        }
+
+        .debug-panel {
+            background: white;
+            border-radius: 10px;
+            margin-top: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border: 2px solid #17a2b8;
+        }
+
+        .debug-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: #17a2b8;
+            color: white;
+            border-radius: 8px 8px 0 0;
+        }
+
+        .debug-header h4 {
+            margin: 0;
+            font-size: 1rem;
+        }
+
+        .debug-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-copy-logs, .btn-clear-logs {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-copy-logs {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-copy-logs:hover {
+            background: #218838;
+        }
+
+        .btn-clear-logs {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-clear-logs:hover {
+            background: #c82333;
+        }
+
+        .debug-logs {
+            padding: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+            background: #f8f9fa;
+            color: #333;
+        }
+
+        .debug-log-entry {
+            margin-bottom: 8px;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .debug-log-info {
+            background: #e3f2fd;
+            border-left: 3px solid #2196f3;
+        }
+
+        .debug-log-success {
+            background: #e8f5e8;
+            border-left: 3px solid #4caf50;
+        }
+
+        .debug-log-error {
+            background: #ffebee;
+            border-left: 3px solid #f44336;
+        }
+
+        .debug-log-warn {
+            background: #fff3e0;
+            border-left: 3px solid #ff9800;
+        }
+
+        .btn-large {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            min-width: 200px;
+        }
+
+        .search-input-group {
+            display: flex;
+            gap: 8px;
+        }
+
+        .search-input-group .search-input {
+            flex: 1;
+        }
+
+        .btn-search {
+            padding: 8px 10px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            min-width: 40px;
+        }
+
+        .btn-search:hover {
+            background: #0056b3;
+        }
+
+        .btn-search-clear {
+            padding: 8px 10px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            min-width: 40px;
+        }
+
+        .btn-search-clear:hover {
+            background: #c82333;
+        }
+
+        .search-within-save {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e9ecef;
+        }
+
+        .search-within-save h4 {
+            margin-bottom: 10px;
+            color: #333;
+            font-size: 1rem;
+        }
+
+        .search-inline {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .search-input-group-compact {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .search-input-compact {
+            width: 200px;
+            padding: 8px 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .stats-compact {
+            text-align: center;
+            padding: 10px 15px;
+            margin-bottom: 15px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .stats-compact span {
+            font-weight: bold;
+            color: #4A90E2;
+        }
+
+        .search-keywords {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+            min-height: 20px;
+        }
+
+        .search-keyword-tag {
+            background: #007bff;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            animation: fadeInScale 0.3s ease;
+        }
+
+        .search-keyword-tag .remove-keyword {
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            padding: 0 2px;
+            margin-left: 2px;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s;
+        }
+
+        .search-keyword-tag .remove-keyword:hover {
+            background-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .exclude-keyword-tag {
+            background: #dc3545;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            animation: fadeInScale 0.3s ease;
+        }
+
+        .exclude-keyword-tag .remove-keyword {
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            padding: 0 2px;
+            margin-left: 2px;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s;
+        }
+
+        .exclude-keyword-tag .remove-keyword:hover {
+            background-color: rgba(255, 255, 255, 0.3);
+        }
+
+        @keyframes fadeInScale {
+            from {
+                opacity: 0;
+                transform: scale(0.8);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .tags-section {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .tags-input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .tag-input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .tag-input:focus {
+            outline: none;
+            border-color: #4A90E2;
+        }
+
+        .add-tag-btn {
+            padding: 8px 16px;
+            background: linear-gradient(45deg, #17a2b8, #6f42c1);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .existing-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .tag-item {
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 4px 12px;
+            border-radius: 15px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 1px solid #bbdefb;
+        }
+
+        .tag-item:hover {
+            background: #1976d2;
+            color: white;
+        }
+
+        .tag-item.selected {
+            background: #4A90E2;
+            color: white;
+            border-color: #4A90E2;
+        }
+
+        .current-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 10px;
+        }
+
+        .current-tag {
+            background: #4CAF50;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .remove-tag {
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .search-section {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .search-section h4 {
+            margin-bottom: 10px;
+            color: #333;
+            font-size: 1rem;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .potion-input-section {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .potion-input-section h4 {
+            margin-bottom: 10px;
+            color: #333;
+            font-size: 1rem;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            min-width: 120px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #4A90E2, #7B68EE);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            color: white;
+        }
+
+        .btn-info {
+            background: linear-gradient(45deg, #17a2b8, #6f42c1);
+            color: white;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        .main-content {
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 8px 15px;
+        }
+
+        .stats {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            justify-content: center;
+        }
+
+        .stat-item {
+            background: white;
+            padding: 15px 25px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #4A90E2;
+        }
+
+        .stat-label {
+            color: #6c757d;
+            font-size: 0.9rem;
+            margin-top: 5px;
+        }
+
+        .prompt-list {
+            display: grid;
+            gap: 8px;
+        }
+
+        .prompt-item {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 10px 15px;
+            transition: all 0.2s;
+        }
+
+        .prompt-item:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            transform: translateY(-1px);
+        }
+
+        .prompt-content-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .prompt-image-main {
+            flex-shrink: 0;
+        }
+
+        .prompt-main-image {
+            width: 60px;
+            height: 60px;
+            object-fit: cover;
+            border-radius: 8px;
+        }
+
+        .prompt-info {
+            flex: 1;
+        }
+
+        .prompt-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .prompt-thumbnail {
+            display: flex;
+            align-items: center;
+        }
+
+        .thumbnail-image {
+            width: 32px;
+            height: 32px;
+            object-fit: cover;
+            border-radius: 6px;
+            border: 2px solid #28a745;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .thumbnail-image:hover {
+            transform: scale(1.1);
+            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+        }
+
+        .prompt-meta {
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+
+        .mini-tag {
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 1px 6px;
+            border-radius: 8px;
+            font-size: 10px;
+            margin-left: 4px;
+        }
+
+        .mini-tag.potion-name {
+            background: #e8f5e8;
+            color: #2e7d32;
+            font-weight: bold;
+        }
+
+        .prompt-title-line {
+            font-size: 13px;
+            color: #333;
+            line-height: 1.3;
+        }
+
+        .btn-delete {
+            padding: 6px 10px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .btn-delete:hover {
+            background: #c82333;
+            transform: scale(1.05);
+        }
+
+
+        .prompt-content {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #4A90E2;
+            line-height: 1.6;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+            font-size: 13px;
+        }
+
+        .character-content {
+            border-left-color: #28a745;
+        }
+
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+            min-width: 80px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6c757d;
+        }
+
+        .search-highlight {
+            background-color: #ffeb3b;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+
+        .file-input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+
+        .prompt-details {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #e9ecef;
+        }
+
+        .search-highlight {
+            background-color: #ffeb3b;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+
+
+        @media (max-width: 768px) {
+            .prompt-row {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .prompt-field h3 {
+                min-width: auto;
+                padding-top: 0;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .search-filter-section {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+            
+            .save-and-clear-section {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .save-buttons {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .btn-save {
+                max-width: none;
+            }
+            
+            .btn-clear {
+                align-self: stretch;
+            }
+            
+            .title-input-row {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+            }
+            
+            .title-input-row h3 {
+                min-width: auto;
+                text-align: center;
+            }
+            
+            .potion-preview-content {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .potion-preview-img {
+                width: 100px;
+                height: 100px;
+            }
+            
+            .potion-preview-info {
+                min-height: auto;
+            }
+            
+            .prompt-main-image {
+                width: 40px;
+                height: 40px;
+            }
+            
+            .thumbnail-image {
+                width: 24px;
+                height: 24px;
+            }
+            
+            .button-group {
+                justify-content: center;
+            }
+            
+            .stats {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .version-badge {
+                top: 10px;
+                right: 15px;
+                font-size: 0.75rem;
+                padding: 4px 8px;
+            }
+        }
+
+        /* タブメニュー用CSS */
+        .tab-menu {
+            display: flex;
+            gap: 5px;
+            background: rgba(255,255,255,0.1);
+            padding: 5px;
+            border-radius: 8px;
+        }
+
+        .tab-button {
+            flex: 1;
+            padding: 6px 10px;
+            border: none;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .tab-button:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .tab-button.active {
+            background: rgba(255,255,255,0.9);
+            color: #333;
+        }
+
+        /* タブコンテンツ */
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+        
+        /* 初期状態でやらかしタブを表示 */
+        #yarakashi-tab {
+            display: block !important;
+        }
+        
+        /* やらかしタブボタンの初期状態 */
+        .tab-button[data-tab="yarakashi"] {
+            background: #4CAF50;
+            color: white;
+        }
+
+        /* やらかしリスト専用スタイル */
+        .yarakashi-item {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-left: 4px solid #f44336;
+        }
+
+        .yarakashi-item.resolved {
+            border-left-color: #4CAF50;
+        }
+
+        .yarakashi-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .yarakashi-meta {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .yarakashi-content {
+            line-height: 1.5;
+            color: #555;
+        }
+        
+        /* サイズ表示バッジ */
+        .size-display {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            font-weight: bold;
+            z-index: 1000;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        
+        /* タブレット対応レスポンシブデザイン (600px-900px幅、900px-1200px高さ) */
+        @media screen and (min-width: 600px) and (max-width: 900px) and (min-height: 900px) and (max-height: 1200px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 20px;
+                margin: 10px 0;
+            }
+            
+            .tab-button {
+                padding: 6px 12px;
+                font-size: 12px;
+                margin: 2px;
+            }
+            
+            .tab-content {
+                padding: 15px;
+            }
+            
+            textarea {
+                font-size: 12px;
+                padding: 8px;
+            }
+            
+            button {
+                font-size: 12px;
+                padding: 6px 12px;
+            }
+            
+            input[type="text"], input[type="email"] {
+                font-size: 12px;
+                padding: 6px;
+            }
+            
+            .yarakashi-item, .issue-item {
+                padding: 10px;
+                margin: 8px 0;
+            }
+            
+            .yarakashi-title, .issue-title {
+                font-size: 14px;
+            }
+            
+            .yarakashi-content, .issue-content {
+                font-size: 12px;
+                line-height: 1.4;
+            }
+            
+            /* サイズ表示をタブレット用に調整 */
+            .size-display {
+                font-size: 11px;
+                padding: 6px 8px;
+                top: 5px;
+                left: 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="size-display" id="size-display">測定中...</div>
+        <div class="version-badge">読み込み中...</div>
+        <div class="header">
+            <h1>📋 統合管理アプリ</h1>
+            
+            <!-- 認証エリア（右寄せ） -->
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span id="auth-status" style="font-size: 13px; font-weight: bold;">🔐 認証中...</span>
+                <button id="login-btn" onclick="testLogin()" style="background: #4CAF50; color: white; padding: 4px 10px; border: none; border-radius: 4px; font-size: 12px; display: none;">
+                    🔐 ログイン
+                </button>
+                <button id="logout-btn" onclick="testLogout()" style="background: #f44336; color: white; padding: 4px 10px; border: none; border-radius: 4px; font-size: 12px; display: none;">
+                    ログアウト
+                </button>
+            </div>
+        </div>
+        
+        <!-- タブメニュー（ヘッダー外） -->
+        <div class="tab-menu" style="margin-top: 0px; background: #f8f9fa; padding: 5px 15px; border-bottom: 1px solid #e9ecef;">
+                <button class="tab-button active" data-tab="yarakashi" onclick="switchTab('yarakashi')">
+                    🚨 やらかしリスト
+                </button>
+                <button class="tab-button" data-tab="issues" onclick="switchTab('issues')">
+                    📋 課題リスト
+                </button>
+                <button class="tab-button" data-tab="novel-ai" onclick="switchTab('novel-ai')">
+                    🎨 Novel AI
+                </button>
+                <button class="tab-button" data-tab="claude-code" onclick="switchTab('claude-code')">
+                    💻 Claude Code
+                </button>
+        </div>
+
+        <!-- やらかしリストタブ -->
+        <div id="yarakashi-tab" class="tab-content active">
+            <!-- 🚨 やらかし入力パネル -->
+            <div class="major-panel" style="border: 5px solid #f44336; border-radius: 12px; padding: 20px; margin-bottom: 20px; background: #fff8f8; box-shadow: 0 4px 8px rgba(244, 67, 54, 0.3);">
+                <h3 style="margin: 0 0 15px 0; color: #f44336; font-size: 1.2rem; font-weight: bold;">🚨 やらかし入力エリア</h3>
+                
+                <div class="yarakashi-section">
+                    <div style="background: white; padding: 8px 15px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 8px;">
+                        <h4>新しいやらかしを追加</h4>
+                    <div style="margin-bottom: 15px;">
+                        <label for="yarakashi-title" style="display: block; font-weight: 600; margin-bottom: 5px;">タイトル:</label>
+                        <input type="text" id="yarakashi-title" placeholder="やらかしの概要を入力" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px;">
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <label for="yarakashi-category" style="display: block; font-weight: 600; margin-bottom: 5px;">カテゴリ:</label>
+                        <select id="yarakashi-category" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px;">
+                            <option value="firebase">Firebase</option>
+                            <option value="auth">認証</option>
+                            <option value="ui">UI/UX</option>
+                            <option value="database">データベース</option>
+                            <option value="other">その他</option>
+                        </select>
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <label for="yarakashi-content" style="display: block; font-weight: 600; margin-bottom: 5px;">詳細内容:</label>
+                        <textarea id="yarakashi-content" rows="4" placeholder="やらかしの詳細、原因、解決方法を入力" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; resize: vertical;"></textarea>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button onclick="addYarakashi()" style="background: #f44336; color: white; padding: 12px 24px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; flex: 1;">
+                            🚨 やらかし追加
+                        </button>
+                        <button onclick="addSampleYarakashi()" style="background: #2196F3; color: white; padding: 12px 16px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">
+                            📝 サンプル
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 🔍 やらかし検索パネル -->
+            <div class="major-panel" style="border: 5px solid #FF9800; border-radius: 12px; padding: 20px; margin-bottom: 20px; background: #fff9f0; box-shadow: 0 4px 8px rgba(255, 152, 0, 0.3);">
+                <h3 style="margin: 0 0 15px 0; color: #FF9800; font-size: 1.2rem; font-weight: bold;">🔍 やらかし検索エリア</h3>
+                
+                <!-- 🔍 やらかし検索機能 -->
+                <div style="margin-bottom: 15px;">
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="text" id="yarakashi-search" placeholder="🔍 やらかしを検索（タイトル・内容・カテゴリ）" 
+                               style="flex: 1; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px;"
+                               oninput="filterYarakashiList()" onkeypress="if(event.key==='Enter') filterYarakashiList()">
+                        <button onclick="filterYarakashiList()" style="background: #7B68EE; color: white; padding: 10px 15px; border: none; border-radius: 8px; cursor: pointer;">🔍 検索</button>
+                        <button onclick="clearYarakashiSearch()" style="background: #666; color: white; padding: 10px 15px; border: none; border-radius: 8px; cursor: pointer;">クリア</button>
+                    </div>
+                    <div style="margin-top: 5px; font-size: 12px; color: #666;">
+                        <span id="yarakashi-search-result">全 <span id="total-count">0</span> 件</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 📋 やらかしリスト表示パネル -->
+            <div class="major-panel" style="border: 5px solid #C62828; border-radius: 12px; padding: 20px; margin-bottom: 20px; background: #fff5f5; box-shadow: 0 4px 8px rgba(198, 40, 40, 0.3);">
+                <h3 style="margin: 0 0 15px 0; color: #C62828; font-size: 1.2rem; font-weight: bold;">📋 やらかしリスト表示</h3>
+
+                <div id="yarakashi-list" style="max-height: none; overflow: visible;">
+                    <!-- やらかしリストがここに表示される -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 📋 課題リストタブ -->
+        <div id="issues-tab" class="tab-content">
+            <!-- 📋 課題入力パネル -->
+            <div class="major-panel" style="border: 5px solid #2196F3; border-radius: 12px; padding: 20px; margin-bottom: 20px; background: #f8fbff; box-shadow: 0 4px 8px rgba(33, 150, 243, 0.3);">
+                <h3 style="margin: 0 0 15px 0; color: #2196F3; font-size: 1.2rem; font-weight: bold;">📋 課題入力エリア</h3>
+                
+                <div class="issues-section">
+                    <div style="background: white; padding: 8px 15px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 8px;">
+                        <h4>新しい課題を追加</h4>
+                    <div style="margin-bottom: 15px;">
+                        <label for="issue-title" style="display: block; font-weight: 600; margin-bottom: 5px;">タイトル:</label>
+                        <input type="text" id="issue-title" placeholder="課題の概要を入力" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px;">
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <label for="issue-priority" style="display: block; font-weight: 600; margin-bottom: 5px;">優先度:</label>
+                        <select id="issue-priority" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px;">
+                            <option value="high">🔥 高</option>
+                            <option value="medium">📋 中</option>
+                            <option value="low">💤 低</option>
+                        </select>
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <label for="issue-project" style="display: block; font-weight: 600; margin-bottom: 5px;">プロジェクト:</label>
+                        <select id="issue-project" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px;">
+                            <option value="novel-ai">🎨 Novel AI Manager</option>
+                            <option value="yarakashi">🚨 やらかし管理</option>
+                            <option value="claude-code">💻 Claude Code</option>
+                            <option value="other">🔧 その他</option>
+                        </select>
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <label for="issue-content" style="display: block; font-weight: 600; margin-bottom: 5px;">詳細:</label>
+                        <textarea id="issue-content" placeholder="課題の詳細、解決方法の提案など" rows="5" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; resize: vertical;"></textarea>
+                    </div>
+                    <div style="text-align: center;">
+                        <button onclick="addIssue()" style="background: #2196F3; color: white; padding: 12px 24px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                            📋 課題を追加
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 🔍 課題検索パネル -->
+            <div class="major-panel" style="border: 5px solid #03A9F4; border-radius: 12px; padding: 20px; margin-bottom: 20px; background: #f0faff; box-shadow: 0 4px 8px rgba(3, 169, 244, 0.3);">
+                <h3 style="margin: 0 0 15px 0; color: #03A9F4; font-size: 1.2rem; font-weight: bold;">🔍 課題検索エリア</h3>
+                
+                <!-- 🔍 課題検索機能 -->
+                <div style="margin-bottom: 15px;">
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="text" id="issue-search" placeholder="🔍 課題を検索（タイトル・内容・プロジェクト）" 
+                               style="flex: 1; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px;"
+                               oninput="filterIssueList()" onkeypress="if(event.key==='Enter') filterIssueList()">
+                        <button onclick="filterIssueList()" style="background: #7B68EE; color: white; padding: 10px 15px; border: none; border-radius: 8px; cursor: pointer;">🔍 検索</button>
+                        <button onclick="clearIssueSearch()" style="background: #666; color: white; padding: 10px 15px; border: none; border-radius: 8px; cursor: pointer;">クリア</button>
+                    </div>
+                    <div style="margin-top: 5px; font-size: 12px; color: #666;">
+                        <span id="issue-search-result">全 <span id="issue-total-count">0</span> 件</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 📋 課題リスト表示パネル -->
+            <div class="major-panel" style="border: 5px solid #3F51B5; border-radius: 12px; padding: 20px; margin-bottom: 20px; background: #f6f7ff; box-shadow: 0 4px 8px rgba(63, 81, 181, 0.3);">
+                <h3 style="margin: 0 0 15px 0; color: #3F51B5; font-size: 1.2rem; font-weight: bold;">📋 課題リスト表示</h3>
+
+                <div id="issue-list" style="max-height: none; overflow: visible;">
+                    <!-- 課題リストがここに表示される -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Novel AIタブ（既存機能） -->
+        <div id="novel-ai-tab" class="tab-content">
+            <!-- 🎯 入力欄パネル -->
+            <div class="major-panel" style="border: 5px solid #4A90E2; border-radius: 12px; padding: 20px; margin-bottom: 20px; background: #f8f9ff; box-shadow: 0 4px 8px rgba(74, 144, 226, 0.3);">
+                <h3 style="margin: 0 0 15px 0; color: #4A90E2; font-size: 1.2rem; font-weight: bold;">🎯 プロンプト入力エリア</h3>
+                
+                <div class="controls">
+                    <!-- タイトル入力エリア -->
+                    <div class="title-section">
+                <div class="title-input-row" style="display: flex; gap: 15px; align-items: center; width: 100%;">
+                    <div style="display: flex; align-items: center; gap: 10px; flex: 2;">
+                        <label style="min-width: 140px; font-weight: 600; font-size: 1rem;">📝 プロンプトタイトル:</label>
+                        <input type="text" id="promptTitle" class="title-input" placeholder="プロンプトにタイトルを付けてください（例: 森の中の美少女、戦闘シーンなど）" maxlength="50" style="flex: 1;">
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px; flex: 1;">
+                        <label style="min-width: 80px; font-weight: 600; font-size: 1rem;">🏷️ カテゴリ:</label>
+                        <select id="promptCategory" class="title-input" style="flex: 1; padding: 10px; border: 2px solid #ddd; border-radius: 6px;">
+                            <option value="">選択してください</option>
+                            <option value="character">キャラクター</option>
+                            <option value="background">背景</option>
+                            <option value="scene">シーン</option>
+                            <option value="style">スタイル</option>
+                            <option value="other">その他</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- プロンプト入力エリア -->
+            <div class="input-section unified-prompt-section">
+                <div class="prompt-row">
+                    <div class="prompt-field">
+                        <h3>🌟 メイン</h3>
+                        <textarea id="mainPrompt" class="unified-prompt main-prompt" placeholder="背景、設定、品質指定など..."></textarea>
+                        <button onclick="copyIndividualPrompt('main')" class="copy-btn-side">📋</button>
+                    </div>
+                </div>
+                <div class="prompt-row">
+                    <div class="prompt-field">
+                        <h3>👤 1人目</h3>
+                        <textarea id="character1" class="unified-prompt" placeholder="1人目のキャラクター詳細..."></textarea>
+                        <button onclick="copyIndividualPrompt('char1')" class="copy-btn-side">📋</button>
+                    </div>
+                </div>
+                <div class="prompt-row">
+                    <div class="prompt-field">
+                        <h3>👥 2人目</h3>
+                        <textarea id="character2" class="unified-prompt" placeholder="2人目のキャラクター詳細..."></textarea>
+                        <button onclick="copyIndividualPrompt('char2')" class="copy-btn-side">📋</button>
+                    </div>
+                </div>
+                <div class="prompt-row">
+                    <div class="prompt-field">
+                        <h3>👥+ 3〜6人目</h3>
+                        <textarea id="character3to6" class="unified-prompt" placeholder="3〜6人目の追加キャラクター..."></textarea>
+                        <button onclick="copyIndividualPrompt('char3to6')" class="copy-btn-side">📋</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- プロンプト保存・検索セクション -->
+            <div class="save-section">
+                <div class="save-and-clear-section">
+                    <div class="save-buttons">
+                        <button onclick="savePrompt('new')" class="btn-primary btn-save">💾 新規保存</button>
+                        <button onclick="savePrompt('overwrite')" class="btn-secondary btn-save" id="overwriteBtn" style="display: none;">📝 上書き保存</button>
+                        <button onclick="saveFromClipboard()" class="btn-secondary btn-save">📋 クリップボードから保存</button>
+                    </div>
+                    <button onclick="clearAllInputs()" class="btn-clear">🧹 クリア</button>
+                </div>
+                
+                <!-- サンプルボタンパネル -->
+                <div class="sample-panel" style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #e9ecef;">
+                    <h4 style="margin: 0 0 10px 0; color: #495057; font-size: 14px;">🎯 クイックサンプル</h4>
+                    <button onclick="loadSamplePrompt()" style="background: #28a745; color: white; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; transition: all 0.2s;" onmouseover="this.style.background='#218838'" onmouseout="this.style.background='#28a745'">
+                        📝 サンプル
+                    </button>
+                </div>
+            </div>
+
+            <!-- 🔍 検索欄パネル -->
+            <div class="major-panel" style="border: 5px solid #28a745; border-radius: 12px; padding: 20px; margin-bottom: 20px; background: #f8fff8; box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);">
+                <h3 style="margin: 0 0 15px 0; color: #28a745; font-size: 1.2rem; font-weight: bold;">🔍 検索・フィルタリングエリア</h3>
+                
+                <!-- キーワード検索 -->
+                <div class="search-within-save">
+                    <div class="search-inline">
+                        <h4>検索</h4>
+                        <div class="search-input-group-compact">
+                            <input type="text" id="searchInput" class="search-input-compact" placeholder="プロンプト内容で検索...">
+                            <button onclick="addSearchKeyword()" class="btn-search">➕</button>
+                            <button onclick="clearAllSearchKeywords()" class="btn-search-clear">❌</button>
+                        </div>
+                    </div>
+                    <div class="search-keywords" id="searchKeywords">
+                        <!-- 検索キーワードタグが表示される -->
+                    </div>
+                    
+                    <div class="search-inline" style="margin-top: 10px;">
+                        <h4>除外</h4>
+                        <div class="search-input-group-compact">
+                            <input type="text" id="excludeInput" class="search-input-compact" placeholder="除外するキーワード...">
+                            <button onclick="addExcludeKeyword()" class="btn-search">➖</button>
+                            <button onclick="clearAllExcludeKeywords()" class="btn-search-clear">❌</button>
+                        </div>
+                    </div>
+                    
+                    <div class="search-keywords" id="excludeKeywords">
+                        <!-- 除外キーワードタグが表示される -->
+                    </div>
+                </div>
+                
+                <div id="potionPreview" class="potion-preview" style="display: none;">
+                    <div class="potion-preview-content">
+                        <img id="potionPreviewImage" src="" alt="ポーション画像" class="potion-preview-img">
+                        <div class="potion-preview-info">
+                            <span id="potionPreviewName">ポーション名</span>
+                            <button onclick="removePotionData()" class="btn-remove-potion">🗑️ 削除</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+            <!-- タグ管理セクション -->
+            <div class="tags-section">
+                <div class="input-with-label">
+                    <h3>🏷️ タグ管理</h3>
+                    <input type="text" id="tagInput" class="tag-input" placeholder="新しいタグを入力... (例: 男性, 女性, 森の中, 夜)">
+                    <button onclick="addTag()" class="add-tag-btn">➕ タグ追加</button>
+                </div>
+                
+                <div class="existing-tags" id="existingTags">
+                    <!-- 既存タグが動的に表示される -->
+                </div>
+                
+                <div class="current-tags" id="currentTags">
+                    <!-- 現在選択中のタグが表示される -->
+                </div>
+            </div>
+            </div>
+
+            <!-- 📋 値のリストパネル -->
+            <div class="major-panel" style="border: 5px solid #dc3545; border-radius: 12px; padding: 20px; margin-bottom: 20px; background: #fff8f8; box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);">
+                <h3 style="margin: 0 0 15px 0; color: #dc3545; font-size: 1.2rem; font-weight: bold;">📋 保存済みプロンプト一覧</h3>
+                
+                <!-- プロンプト一覧セクション -->
+                <div class="main-content">
+                    <!-- 統計表示 -->
+                    <div class="stats-compact">
+                        総プロンプト <span id="totalCount">0</span> | 検索結果 <span id="searchCount">0</span> | 今日追加 <span id="todayCount">0</span> | タグ数 <span id="tagCount">0</span>
+                    </div>
+
+                    <!-- プロンプト一覧 -->
+                    <div id="promptList" class="prompt-list">
+                        <div class="empty-state">
+                            <h3>📝 プロンプトがありません</h3>
+                            <p>最初のプロンプトを追加してください</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ポーション読み込みセクション -->
+            <div class="potion-input-section">
+                <h4>🧪 ポーション</h4>
+                <input type="file" id="potionInput" class="file-input" accept=".txt,.json,.png,.jpg,.jpeg" multiple onchange="loadPotions()">
+            </div>
+
+            <!-- 操作ボタン -->
+            <div class="button-group">
+                <button onclick="exportData()" class="btn-info">📤 エクスポート</button>
+                <button onclick="importData()" class="btn-info">📥 インポート</button>
+                <button onclick="toggleDebugPanel()" class="btn-info">🔍 デバッグ</button>
+            </div>
+
+            <!-- デバッグパネル -->
+            <div id="debugPanel" class="debug-panel" style="display: none;">
+                <div class="debug-header">
+                    <h4>🔍 デバッグログ</h4>
+                    <div class="debug-buttons">
+                        <button onclick="copyDebugLogs()" class="btn-copy-logs">📋 コピー</button>
+                        <button onclick="clearDebugLogs()" class="btn-clear-logs">🗑️ クリア</button>
+                    </div>
+                </div>
+                <div id="debugLogs" class="debug-logs"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let prompts = [];
+        let allTags = new Set();
+        let currentTags = new Set();
+        let currentSearch = '';
+        let searchKeywords = new Set(); // 複数検索キーワード
+        let excludeKeywords = new Set(); // 除外キーワード
+        let currentEditingId = null; // 現在編集中のプロンプトID
+        let debugLogs = []; // デバッグログ保存用
+
+        // ページ読み込み時の初期化
+        window.onload = async function() {
+            await loadPrompts();
+            displayPrompts();
+            updateStats();
+            updateTagsDisplay();
+            
+            // イベントリスナー設定
+            document.getElementById('tagInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    addTag();
+                }
+            });
+            
+            // 検索ボタンのクリックイベント
+            document.getElementById('searchInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    addSearchKeyword();
+                }
+            });
+            
+            // 除外入力のEnterキー対応
+            document.getElementById('excludeInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    addExcludeKeyword();
+                }
+            });
+        };
+
+        // 検索キーワード追加
+        function addSearchKeyword() {
+            const input = document.getElementById('searchInput');
+            const keyword = input.value.trim();
+            
+            if (!keyword) return;
+            
+            searchKeywords.add(keyword);
+            input.value = '';
+            updateSearchKeywordsDisplay();
+            displayPrompts();
+            showNotification(`検索キーワード「${keyword}」を追加しました`);
+        }
+
+        // 検索キーワード削除
+        function removeSearchKeyword(keyword) {
+            searchKeywords.delete(keyword);
+            updateSearchKeywordsDisplay();
+            displayPrompts();
+            showNotification(`検索キーワード「${keyword}」を削除しました`);
+        }
+
+        // 全検索キーワードクリア
+        function clearAllSearchKeywords() {
+            searchKeywords.clear();
+            document.getElementById('searchInput').value = '';
+            updateSearchKeywordsDisplay();
+            displayPrompts();
+            showNotification('検索キーワードを全てクリアしました');
+        }
+
+        // 検索キーワード表示更新
+        function updateSearchKeywordsDisplay() {
+            const container = document.getElementById('searchKeywords');
+            container.innerHTML = Array.from(searchKeywords).map(keyword => 
+                `<span class="search-keyword-tag">
+                    ${keyword}
+                    <span class="remove-keyword" onclick="removeSearchKeyword('${keyword}')">×</span>
+                </span>`
+            ).join('');
+        }
+
+        // 除外キーワード追加
+        function addExcludeKeyword() {
+            const input = document.getElementById('excludeInput');
+            const keyword = input.value.trim();
+            
+            if (!keyword) return;
+            
+            excludeKeywords.add(keyword);
+            input.value = '';
+            updateExcludeKeywordsDisplay();
+            displayPrompts();
+            showNotification(`除外キーワード「${keyword}」を追加しました`);
+        }
+
+        // 除外キーワード削除
+        function removeExcludeKeyword(keyword) {
+            excludeKeywords.delete(keyword);
+            updateExcludeKeywordsDisplay();
+            displayPrompts();
+            showNotification(`除外キーワード「${keyword}」を削除しました`);
+        }
+
+        // 全除外キーワードクリア
+        function clearAllExcludeKeywords() {
+            excludeKeywords.clear();
+            document.getElementById('excludeInput').value = '';
+            updateExcludeKeywordsDisplay();
+            displayPrompts();
+            showNotification('除外キーワードを全てクリアしました');
+        }
+
+        // 除外キーワード表示更新
+        function updateExcludeKeywordsDisplay() {
+            const container = document.getElementById('excludeKeywords');
+            container.innerHTML = Array.from(excludeKeywords).map(keyword => 
+                `<span class="exclude-keyword-tag">
+                    ${keyword}
+                    <span class="remove-keyword" onclick="removeExcludeKeyword('${keyword}')">×</span>
+                </span>`
+            ).join('');
+        }
+
+        // 個別プロンプトのコピー
+        async function copyIndividualPrompt(type) {
+            let content = '';
+            
+            switch(type) {
+                case 'main':
+                    content = document.getElementById('mainPrompt').value.trim();
+                    break;
+                case 'char1':
+                    content = document.getElementById('character1').value.trim();
+                    break;
+                case 'char2':
+                    content = document.getElementById('character2').value.trim();
+                    break;
+                case 'char3to6':
+                    content = document.getElementById('character3to6').value.trim();
+                    break;
+            }
+            
+            if (!content) {
+                alert('コピーする内容がありません');
+                return;
+            }
+            
+            try {
+                await navigator.clipboard.writeText(content);
+                showNotification(`${getPromptTypeName(type)}をコピーしました！`);
+            } catch (err) {
+                alert('コピーに失敗しました');
+            }
+        }
+
+        function getPromptTypeName(type) {
+            const names = {
+                'main': 'メインプロンプト',
+                'char1': '1人目キャラクター',
+                'char2': '2人目キャラクター',
+                'char3to6': '3〜6人目キャラクター'
+            };
+            return names[type] || type;
+        }
+
+        // タグの追加
+        function addTag() {
+            const input = document.getElementById('tagInput');
+            const tagName = input.value.trim();
+            
+            if (!tagName) return;
+            
+            currentTags.add(tagName);
+            allTags.add(tagName);
+            
+            input.value = '';
+            updateTagsDisplay();
+        }
+
+        // タグ表示の更新
+        function updateTagsDisplay() {
+            // 既存タグ一覧の更新
+            const existingTagsContainer = document.getElementById('existingTags');
+            existingTagsContainer.innerHTML = Array.from(allTags).map(tag => 
+                `<span class="tag-item ${currentTags.has(tag) ? 'selected' : ''}" onclick="toggleTag('${tag}')">${tag}</span>`
+            ).join('');
+            
+            // 現在選択中タグの更新
+            const currentTagsContainer = document.getElementById('currentTags');
+            currentTagsContainer.innerHTML = Array.from(currentTags).map(tag => 
+                `<span class="current-tag">${tag} <span class="remove-tag" onclick="removeCurrentTag('${tag}')">×</span></span>`
+            ).join('');
+            
+        }
+
+        // タグの切り替え
+        function toggleTag(tagName) {
+            if (currentTags.has(tagName)) {
+                currentTags.delete(tagName);
+            } else {
+                currentTags.add(tagName);
+            }
+            updateTagsDisplay();
+        }
+
+        // 現在のタグを削除
+        function removeCurrentTag(tagName) {
+            currentTags.delete(tagName);
+            updateTagsDisplay();
+        }
+
+        // プロンプトの保存
+        async function savePrompt(mode = 'new') {
+            debugLog(`=== プロンプト保存開始 ===`, 'info');
+            debugLog(`保存モード: ${mode}`, 'info');
+            
+            const title = document.getElementById('promptTitle').value.trim();
+            const mainPrompt = document.getElementById('mainPrompt').value.trim();
+            
+            debugLog(`タイトル: "${title}"`, 'info');
+            debugLog(`メインプロンプト: "${mainPrompt.substring(0, 50)}..."`, 'info');
+            
+            if (!title) {
+                debugLog('タイトルが空のため保存中止', 'error');
+                alert('プロンプトタイトルを入力してください');
+                return;
+            }
+            
+            if (!mainPrompt) {
+                debugLog('メインプロンプトが空のため保存中止', 'error');
+                alert('メインプロンプトを入力してください');
+                return;
+            }
+
+            const promptData = {
+                title: title,
+                mainPrompt: mainPrompt,
+                character1: document.getElementById('character1').value.trim(),
+                character2: document.getElementById('character2').value.trim(),
+                character3to6: document.getElementById('character3to6').value.trim(),
+                tags: Array.from(currentTags),
+                timestamp: new Date(),
+                source: window.currentPotionData ? 'potion' : 'manual'
+            };
+
+            // ポーション情報がある場合は追加
+            if (window.currentPotionData) {
+                promptData.image = window.currentPotionData.image;
+                promptData.imageName = window.currentPotionData.imageName;
+                promptData.potionName = window.currentPotionData.potionName;
+                // ポーションタグを追加
+                if (!promptData.tags.includes('ポーション')) {
+                    promptData.tags.push('ポーション');
+                    currentTags.add('ポーション');
+                }
+            }
+
+            if (mode === 'overwrite' && currentEditingId) {
+                // 上書き保存
+                const index = prompts.findIndex(p => p.id == currentEditingId);
+                if (index !== -1) {
+                    promptData.id = currentEditingId;
+                    promptData.originalTimestamp = prompts[index].timestamp; // 元の作成日時を保持
+                    prompts[index] = promptData;
+                    showNotification('プロンプトを上書き保存しました！');
+                } else {
+                    // 元のプロンプトが見つからない場合は新規保存
+                    promptData.id = Date.now();
+                    prompts.unshift(promptData);
+                    showNotification('プロンプトを新規保存しました！');
+                }
+            } else {
+                // 新規保存
+                promptData.id = Date.now();
+                prompts.unshift(promptData);
+                showNotification('プロンプトを新規保存しました！');
+            }
+            
+            // タグをグローバルセットに追加
+            currentTags.forEach(tag => allTags.add(tag));
+            debugLog(`タグをグローバルセットに追加: [${Array.from(currentTags).join(', ')}]`, 'info');
+            
+            debugLog('savePrompts()呼び出し前のプロンプト数: ' + prompts.length, 'info');
+            await savePrompts();
+            debugLog('savePrompts()呼び出し後のプロンプト数: ' + prompts.length, 'info');
+            
+            clearInputs();
+            displayPrompts();
+            updateStats();
+            updateTagsDisplay();
+            updateSaveButtons();
+            
+            debugLog('=== プロンプト保存完了 ===', 'success');
+        }
+
+        // 入力フィールドのクリア
+        function clearInputs() {
+            document.getElementById('promptTitle').value = '';
+            document.getElementById('mainPrompt').value = '';
+            document.getElementById('character1').value = '';
+            document.getElementById('character2').value = '';
+            document.getElementById('character3to6').value = '';
+            currentTags.clear();
+            // ポーション情報もクリア
+            window.currentPotionData = null;
+            currentEditingId = null;
+            updatePotionPreview();
+            updateSaveButtons();
+        }
+
+        // サンプルプロンプトの読み込み
+        function loadSamplePrompt() {
+            debugLog('=== サンプルプロンプト読み込み開始 ===', 'info');
+            
+            // タイトル入力フィールドにサンプルタイトルを設定
+            document.getElementById('promptTitle').value = '森の中の美少女';
+            
+            // カテゴリー選択フィールドにサンプルカテゴリーを設定
+            document.getElementById('promptCategory').value = 'character';
+            
+            // メインプロンプトにサンプルプロンプトを設定
+            document.getElementById('mainPrompt').value = 'beautiful anime girl in forest, detailed face, masterpiece, high quality, soft lighting, nature background, peaceful atmosphere';
+            
+            // キャラクター1のテキストエリアにサンプルテキストを設定
+            document.getElementById('character1').value = 'long brown hair, green eyes, white dress, gentle smile, standing pose, looking at viewer';
+            
+            // キャラクター2のテキストエリアにサンプルテキストを設定
+            document.getElementById('character2').value = 'short blonde hair, blue eyes, red jacket, cheerful expression, sitting on tree stump';
+            
+            // キャラクター3-6のテキストエリアにサンプルテキストを設定
+            document.getElementById('character3to6').value = 'fairy companion: small wings, glowing aura, magical sparkles\nforest animals: rabbits, birds, deer in background\nfloral elements: colorful flowers, vines, cherry blossoms\nsunlight filtering through trees, magical atmosphere';
+            
+            // サンプル用のタグを設定
+            currentTags.clear();
+            currentTags.add('サンプル');
+            currentTags.add('森');
+            currentTags.add('美少女');
+            currentTags.add('キャラクター');
+            
+            // タグをグローバルセットに追加
+            currentTags.forEach(tag => allTags.add(tag));
+            
+            // UI更新
+            updateTagsDisplay();
+            
+            // 編集中IDをクリア（新規作成モード）
+            currentEditingId = null;
+            updateSaveButtons();
+            
+            // 成功メッセージ表示
+            showNotification('サンプルプロンプトを読み込みました！✨');
+            
+            debugLog('サンプルプロンプト読み込み完了', 'success');
+        }
+
+        // クリップボードから保存
+        async function saveFromClipboard() {
+            try {
+                const text = await navigator.clipboard.readText();
+                if (!text.trim()) {
+                    alert('クリップボードが空です');
+                    return;
+                }
+
+                const prompt = {
+                    id: Date.now(),
+                    title: text.trim().substring(0, 30) + (text.length > 30 ? '...' : ''),
+                    mainPrompt: text.trim(),
+                    character1: '',
+                    character2: '',
+                    character3to6: '',
+                    tags: Array.from(currentTags),
+                    timestamp: new Date(),
+                    source: 'clipboard'
+                };
+
+                prompts.unshift(prompt);
+                
+                currentTags.forEach(tag => allTags.add(tag));
+                
+                savePrompts();
+                displayPrompts();
+                updateStats();
+                
+                showNotification('クリップボードからプロンプトを保存しました！');
+            } catch (err) {
+                alert('クリップボードの読み取りに失敗しました');
+            }
+        }
+
+        // プロンプトの表示
+        function displayPrompts() {
+            const container = document.getElementById('promptList');
+            const filteredPrompts = filterPrompts();
+
+            if (filteredPrompts.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <h3>🔍 ${currentSearch ? '検索結果なし' : 'プロンプトがありません'}</h3>
+                        <p>${currentSearch ? '条件に一致するプロンプトが見つかりません' : '最初のプロンプトを追加してください'}</p>
+                    </div>
+                `;
+                updateStats();
+                return;
+            }
+
+            container.innerHTML = filteredPrompts.map(prompt => `
+                <div class="prompt-item">
+                    <div class="prompt-content-row">
+                        ${prompt.image ? `<div class="prompt-image-main"><img src="${prompt.image}" alt="${prompt.imageName || 'ポーション画像'}" class="prompt-main-image"></div>` : ''}
+                        <div class="prompt-info" onclick="restorePromptToInputs('${prompt.id}')" style="cursor: pointer;">
+                            <div class="prompt-meta">
+                                📅 ${formatDateTime(prompt.timestamp)} 
+                                ${prompt.source === 'clipboard' ? '📋' : prompt.source === 'file' ? '📁' : prompt.source === 'potion' ? '🧪' : '✏️'}
+                                ${prompt.tags.map(tag => `<span class="mini-tag">${tag}</span>`).join('')}
+                                ${prompt.potionName ? `<span class="mini-tag potion-name">🧪 ${prompt.potionName}</span>` : ''}
+                            </div>
+                            <div class="prompt-title-line">
+                                <strong>${highlightSearchKeywords(prompt.title || '無題')}</strong> - ${highlightSearchKeywords(truncateText(prompt.mainPrompt, 50))}
+                            </div>
+                        </div>
+                        <div class="prompt-actions">
+                            ${prompt.image ? `<div class="prompt-thumbnail"><img src="${prompt.image}" alt="${prompt.imageName || 'ポーション画像'}" class="thumbnail-image" title="${prompt.potionName || prompt.imageName || 'ポーション画像'}"></div>` : ''}
+                            <button onclick="deletePrompt('${prompt.id}')" class="btn-delete">🗑️</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            updateStats();
+        }
+
+        // 保存済みプロンプトのコピー
+        async function copyStoredPrompt(id, type) {
+            const prompt = prompts.find(p => p.id == id);
+            if (!prompt) return;
+
+            let content = '';
+            switch(type) {
+                case 'main':
+                    content = prompt.mainPrompt;
+                    break;
+                case 'char1':
+                    content = prompt.character1;
+                    break;
+                case 'char2':
+                    content = prompt.character2;
+                    break;
+                case 'char3to6':
+                    content = prompt.character3to6;
+                    break;
+            }
+
+            if (!content.trim()) {
+                alert('コピーする内容がありません');
+                return;
+            }
+
+            try {
+                await navigator.clipboard.writeText(content);
+                showNotification(`${getPromptTypeName(type)}をコピーしました！`);
+            } catch (err) {
+                alert('コピーに失敗しました');
+            }
+        }
+
+        // プロンプトのフィルタリング
+        function filterPrompts() {
+            let filtered = prompts;
+
+            // 複数キーワード検索（AND検索）
+            if (searchKeywords.size > 0) {
+                const keywords = Array.from(searchKeywords).map(k => k.toLowerCase());
+                debugLog(`複数キーワード検索実行: [${keywords.join(', ')}] - 対象件数: ${prompts.length}`, 'info');
+                
+                filtered = filtered.filter(prompt => {
+                    // 全てのキーワードがマッチするかチェック（AND検索）
+                    return keywords.every(searchTerm => {
+                        const titleMatch = prompt.title && prompt.title.toLowerCase().includes(searchTerm);
+                        const mainMatch = prompt.mainPrompt && prompt.mainPrompt.toLowerCase().includes(searchTerm);
+                        const char1Match = prompt.character1 && prompt.character1.toLowerCase().includes(searchTerm);
+                        const char2Match = prompt.character2 && prompt.character2.toLowerCase().includes(searchTerm);
+                        const char3Match = prompt.character3to6 && prompt.character3to6.toLowerCase().includes(searchTerm);
+                        const tagMatch = prompt.tags && prompt.tags.some(tag => tag.toLowerCase().includes(searchTerm));
+                        
+                        return titleMatch || mainMatch || char1Match || char2Match || char3Match || tagMatch;
+                    });
+                });
+                
+                debugLog(`複数キーワードフィルター結果: ${filtered.length}件`, 'success');
+            }
+
+            // 除外キーワード（いずれかが含まれるものを除外）
+            if (excludeKeywords.size > 0) {
+                const excludeTerms = Array.from(excludeKeywords).map(k => k.toLowerCase());
+                debugLog(`除外キーワード実行: [${excludeTerms.join(', ')}] - 対象件数: ${filtered.length}`, 'info');
+                
+                const beforeCount = filtered.length;
+                filtered = filtered.filter(prompt => {
+                    // いずれかの除外キーワードが含まれる場合は除外
+                    return !excludeTerms.some(excludeTerm => {
+                        const titleMatch = prompt.title && prompt.title.toLowerCase().includes(excludeTerm);
+                        const mainMatch = prompt.mainPrompt && prompt.mainPrompt.toLowerCase().includes(excludeTerm);
+                        const char1Match = prompt.character1 && prompt.character1.toLowerCase().includes(excludeTerm);
+                        const char2Match = prompt.character2 && prompt.character2.toLowerCase().includes(excludeTerm);
+                        const char3Match = prompt.character3to6 && prompt.character3to6.toLowerCase().includes(excludeTerm);
+                        const tagMatch = prompt.tags && prompt.tags.some(tag => tag.toLowerCase().includes(excludeTerm));
+                        
+                        return titleMatch || mainMatch || char1Match || char2Match || char3Match || tagMatch;
+                    });
+                });
+                
+                debugLog(`除外フィルター結果: ${filtered.length}件 (${beforeCount - filtered.length}件除外)`, 'success');
+            }
+
+            return filtered;
+        }
+
+        // テキストの切り詰め
+        function truncateText(text, maxLength) {
+            if (!text) return '';
+            if (text.length <= maxLength) return text;
+            return text.substring(0, maxLength) + '...';
+        }
+
+        // プロンプトを入力欄に復元
+        function restorePromptToInputs(id) {
+            debugLog(`=== プロンプト復元開始 ===`, 'info');
+            debugLog(`対象ID: ${id}`, 'info');
+            
+            const prompt = prompts.find(p => p.id == id);
+            if (!prompt) {
+                debugLog(`プロンプトが見つかりません: ID=${id}`, 'error');
+                return;
+            }
+            
+            debugLog(`見つかったプロンプト: "${prompt.title}"`, 'success');
+            
+            // 各入力欄に値を設定
+            document.getElementById('promptTitle').value = prompt.title || '';
+            document.getElementById('mainPrompt').value = prompt.mainPrompt || '';
+            document.getElementById('character1').value = prompt.character1 || '';
+            document.getElementById('character2').value = prompt.character2 || '';
+            document.getElementById('character3to6').value = prompt.character3to6 || '';
+            
+            debugLog(`入力欄に値を設定完了`, 'success');
+            
+            // タグも復元
+            currentTags.clear();
+            if (prompt.tags) {
+                prompt.tags.forEach(tag => currentTags.add(tag));
+            }
+            updateTagsDisplay();
+            
+            // 編集モードを設定
+            currentEditingId = id;
+            
+            // ポーション情報がある場合は一時保存
+            if (prompt.source === 'potion' || prompt.image) {
+                window.currentPotionData = {
+                    image: prompt.image,
+                    imageName: prompt.imageName,
+                    potionName: prompt.potionName
+                };
+            } else {
+                window.currentPotionData = null;
+            }
+            
+            // UI更新
+            updatePotionPreview();
+            updateSaveButtons();
+            
+            // 成功メッセージ
+            showNotification(`"${prompt.title || '無題'}" を編集モードで復元しました！${prompt.source === 'potion' ? ' 🧪' : ''}`);
+            
+            // 入力エリアまでスクロール
+            document.querySelector('.title-section').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // 検索キーワードのハイライト（複数対応）
+        function highlightSearchKeywords(content) {
+            if (searchKeywords.size === 0 || !content) {
+                return content || '';
+            }
+
+            let highlightedContent = content;
+            
+            // 各検索キーワードをハイライト
+            Array.from(searchKeywords).forEach(keyword => {
+                const regex = new RegExp(`(${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+                highlightedContent = highlightedContent.replace(regex, '<span class="search-highlight">$1</span>');
+            });
+            
+            return highlightedContent;
+        }
+
+        // プロンプトの削除
+        function deletePrompt(id) {
+            if (!confirm('このプロンプトを削除しますか？')) return;
+
+            prompts = prompts.filter(p => p.id != id);
+            savePrompts();
+            displayPrompts();
+            updateStats();
+            
+            showNotification('プロンプトを削除しました');
+        }
+
+        // 統計の更新
+        function updateStats() {
+            const total = prompts.length;
+            const filtered = filterPrompts().length;
+            const today = prompts.filter(p => {
+                const promptDate = new Date(p.timestamp);
+                const todayDate = new Date();
+                return promptDate.toDateString() === todayDate.toDateString();
+            }).length;
+
+            document.getElementById('totalCount').textContent = total;
+            document.getElementById('searchCount').textContent = filtered;
+            document.getElementById('todayCount').textContent = today;
+            document.getElementById('tagCount').textContent = allTags.size;
+        }
+
+        // ポーションの読み込み
+        function loadPotions() {
+            const potionInput = document.getElementById('potionInput');
+            const files = potionInput.files;
+
+            debugLog('=== ポーション読み込み開始 ===', 'info');
+            debugLog('選択されたファイル数: ' + files.length, 'info');
+
+            if (files.length === 0) {
+                debugLog('ファイルが選択されていません', 'error');
+                alert('ポーションファイルを選択してください');
+                return;
+            }
+
+            let loadedCount = 0;
+            const totalFiles = files.length; // ファイル数を事前に保存
+            const potionData = {};
+
+            Array.from(files).forEach(file => {
+                const reader = new FileReader();
+                const fileExt = file.name.split('.').pop().toLowerCase();
+                
+                debugLog('ファイル処理開始: ' + file.name + ' (タイプ: ' + fileExt + ')', 'info');
+                
+                if (['png', 'jpg', 'jpeg'].includes(fileExt)) {
+                    // 画像ファイルの場合
+                    debugLog('画像ファイルとして読み込み: ' + file.name, 'info');
+                    reader.onload = function(e) {
+                        const baseName = file.name.replace(/\.(png|jpg|jpeg)$/i, '');
+                        if (!potionData[baseName]) {
+                            potionData[baseName] = {};
+                        }
+                        potionData[baseName].image = e.target.result;
+                        potionData[baseName].imageName = file.name;
+                        
+                        debugLog('画像データ読み込み完了: ' + baseName, 'success');
+                        debugLog('画像データサイズ: ' + Math.round(e.target.result.length / 1024) + 'KB', 'info');
+                        
+                        loadedCount++;
+                        debugLog('読み込み完了カウント: ' + loadedCount + '/' + totalFiles, 'info');
+                        if (loadedCount === totalFiles) {
+                            debugLog('全ファイル読み込み完了、processPotionData呼び出し', 'info');
+                            processPotionData(potionData);
+                        }
+                    };
+                    reader.readAsDataURL(file);
+                } else if (['txt', 'json'].includes(fileExt)) {
+                    // テキスト/JSONファイルの場合
+                    debugLog('テキストファイルとして読み込み: ' + file.name, 'info');
+                    reader.onload = function(e) {
+                        const baseName = file.name.replace(/\.(txt|json)$/i, '');
+                        if (!potionData[baseName]) {
+                            potionData[baseName] = {};
+                        }
+                        
+                        let content;
+                        if (fileExt === 'json') {
+                            try {
+                                const jsonData = JSON.parse(e.target.result);
+                                content = jsonData.prompt || jsonData.text || JSON.stringify(jsonData, null, 2);
+                                debugLog('JSON解析成功: ' + baseName, 'success');
+                            } catch (err) {
+                                content = e.target.result;
+                                debugLog('JSON解析失敗、テキストとして処理: ' + baseName, 'warn');
+                            }
+                        } else {
+                            content = e.target.result;
+                        }
+                        
+                        potionData[baseName].content = content.trim();
+                        potionData[baseName].textName = file.name;
+                        
+                        debugLog('テキストデータ読み込み完了: ' + baseName, 'success');
+                        debugLog('テキスト文字数: ' + content.trim().length + '文字', 'info');
+                        
+                        loadedCount++;
+                        if (loadedCount === totalFiles) {
+                            processPotionData(potionData);
+                        }
+                    };
+                    reader.readAsText(file, 'UTF-8');
+                } else {
+                    debugLog('サポート外のファイル形式: ' + file.name, 'error');
+                    alert(`${file.name} はサポートされていないファイル形式です`);
+                    loadedCount++;
+                    if (loadedCount === totalFiles) {
+                        processPotionData(potionData);
+                    }
+                }
+            });
+
+            potionInput.value = '';
+        }
+
+        // ポーションデータの処理
+        function processPotionData(potionData) {
+            debugLog('=== ポーションデータ処理開始 ===', 'info');
+            debugLog('処理対象ポーション数: ' + Object.keys(potionData).length, 'info');
+            
+            let processedCount = 0;
+            
+            Object.keys(potionData).forEach(baseName => {
+                const potion = potionData[baseName];
+                debugLog('ポーション処理中: ' + baseName, 'info');
+                debugLog('- テキスト: ' + (potion.content ? 'あり' : 'なし'), 'info');
+                debugLog('- 画像: ' + (potion.image ? 'あり' : 'なし'), 'info');
+                
+                // テキストがある場合はプロンプトとして保存
+                if (potion.content) {
+                    const prompt = {
+                        id: Date.now() + Math.random(),
+                        title: baseName || (potion.content.substring(0, 30) + '...'),
+                        mainPrompt: potion.content,
+                        character1: '',
+                        character2: '',
+                        character3to6: '',
+                        tags: ['ポーション'],
+                        timestamp: new Date(),
+                        source: 'potion',
+                        potionName: baseName,
+                        image: potion.image,
+                        imageName: potion.imageName,
+                        textName: potion.textName
+                    };
+
+                    prompts.unshift(prompt);
+                    processedCount++;
+                    debugLog('ポーションをプロンプトとして追加: ' + baseName, 'success');
+                }
+                
+                // 画像のみの場合は入力欄にプレビュー表示
+                if (potion.image && !potion.content) {
+                    debugLog('画像のみのポーション検出: ' + baseName, 'info');
+                    window.currentPotionData = {
+                        image: potion.image,
+                        imageName: potion.imageName,
+                        potionName: baseName
+                    };
+                    debugLog('currentPotionData設定完了', 'success');
+                    debugLog('画像データ先頭確認: ' + potion.image.substring(0, 30) + '...', 'info');
+                    updatePotionPreview();
+                    debugLog('updatePotionPreview呼び出し完了', 'success');
+                }
+            });
+            
+            debugLog('処理完了数: ' + processedCount, 'info');
+            
+            if (processedCount > 0) {
+                // ポーションタグをグローバルタグに追加
+                allTags.add('ポーション');
+                
+                // 最初のポーションを入力欄に自動設定してプレビュー表示
+                if (processedCount === 1) {
+                    debugLog('単一ポーションを入力欄に自動設定', 'info');
+                    const firstPotionName = Object.keys(potionData)[0];
+                    const firstPotion = potionData[firstPotionName];
+                    
+                    document.getElementById('promptTitle').value = firstPotionName;
+                    document.getElementById('mainPrompt').value = firstPotion.content;
+                    
+                    if (firstPotion.image) {
+                        window.currentPotionData = {
+                            image: firstPotion.image,
+                            imageName: firstPotion.imageName,
+                            potionName: firstPotionName
+                        };
+                        debugLog('自動設定されたポーション: ' + firstPotionName, 'success');
+                        updatePotionPreview();
+                    }
+                }
+                
+                savePrompts();
+                displayPrompts();
+                updateStats();
+                updateTagsDisplay();
+                showNotification(`${processedCount}個のポーションを読み込みました！🧪`);
+                debugLog('ポーション読み込み成功: ' + processedCount + '個', 'success');
+            } else {
+                showNotification('読み込み可能なポーションが見つかりませんでした');
+                debugLog('読み込み可能なポーションが見つからない', 'warn');
+            }
+            
+            debugLog('=== ポーションデータ処理終了 ===', 'info');
+        }
+
+        // ポーションプレビューの更新
+        function updatePotionPreview() {
+            const preview = document.getElementById('potionPreview');
+            const previewImage = document.getElementById('potionPreviewImage');
+            const previewName = document.getElementById('potionPreviewName');
+            
+            debugLog('=== updatePotionPreview 開始 ===', 'info');
+            debugLog('currentPotionData: ' + (window.currentPotionData ? 'あり' : 'なし'), 'info');
+            debugLog('preview要素: ' + (preview ? 'OK' : 'NG'), 'info');
+            debugLog('previewImage要素: ' + (previewImage ? 'OK' : 'NG'), 'info');
+            
+            if (window.currentPotionData && window.currentPotionData.image) {
+                const imageData = window.currentPotionData.image;
+                debugLog('画像データあり', 'info');
+                debugLog('画像データ先頭: ' + imageData.substring(0, 50) + '...', 'info');
+                debugLog('画像データタイプ: ' + (imageData.startsWith('data:') ? 'base64' : 'その他'), 'info');
+                
+                // 強制的に画像を表示
+                previewImage.src = imageData;
+                previewImage.style.display = 'block';
+                previewImage.style.visibility = 'visible';
+                previewImage.style.opacity = '1';
+                
+                previewName.textContent = window.currentPotionData.potionName || window.currentPotionData.imageName || 'ポーション';
+                preview.style.display = 'block';
+                
+                debugLog('画像src設定完了', 'success');
+                
+                // 画像読み込み成功時
+                previewImage.onload = function() {
+                    debugLog('✅ ポーション画像読み込み成功！ サイズ: ' + this.naturalWidth + 'x' + this.naturalHeight, 'success');
+                };
+                
+                // 画像読み込みエラーハンドリング
+                previewImage.onerror = function() {
+                    debugLog('❌ ポーション画像の読み込みに失敗', 'error');
+                    debugLog('画像データ: ' + imageData.substring(0, 100) + '...', 'error');
+                    previewName.textContent = '画像読み込みエラー - ' + (window.currentPotionData.imageName || 'unknown');
+                };
+                
+                // 即座に状態をチェック
+                setTimeout(() => {
+                    debugLog('1秒後のチェック:', 'info');
+                    debugLog('- complete: ' + previewImage.complete, 'info');
+                    debugLog('- naturalWidth: ' + previewImage.naturalWidth, 'info');
+                    debugLog('- display: ' + previewImage.style.display, 'info');
+                }, 1000);
+                
+            } else {
+                debugLog('❌ ポーション情報なし、プレビュー非表示', 'warn');
+                preview.style.display = 'none';
+            }
+            
+            debugLog('=== updatePotionPreview 終了 ===', 'info');
+        }
+
+        // 保存ボタンの更新
+        function updateSaveButtons() {
+            const overwriteBtn = document.getElementById('overwriteBtn');
+            
+            if (currentEditingId) {
+                overwriteBtn.style.display = 'block';
+            } else {
+                overwriteBtn.style.display = 'none';
+            }
+        }
+
+        // ポーションデータの削除
+        function removePotionData() {
+            window.currentPotionData = null;
+            updatePotionPreview();
+            showNotification('ポーション情報を削除しました');
+        }
+
+        // 全入力内容のクリア
+        function clearAllInputs() {
+            clearInputs();
+            updateTagsDisplay();
+        }
+
+        // デバッグログ関数
+        function debugLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = {
+                time: timestamp,
+                message: message,
+                type: type
+            };
+            debugLogs.push(logEntry);
+            
+            // ログが多すぎる場合は古いものを削除
+            if (debugLogs.length > 100) {
+                debugLogs = debugLogs.slice(-50);
+            }
+            
+            updateDebugDisplay();
+        }
+
+        // デバッグパネルの表示/非表示切り替え
+        function toggleDebugPanel() {
+            const panel = document.getElementById('debugPanel');
+            if (panel.style.display === 'none') {
+                panel.style.display = 'block';
+                debugLog('デバッグパネルを開きました', 'info');
+            } else {
+                panel.style.display = 'none';
+            }
+        }
+
+        // デバッグログの表示更新
+        function updateDebugDisplay() {
+            const logsContainer = document.getElementById('debugLogs');
+            if (!logsContainer) return;
+            
+            logsContainer.innerHTML = debugLogs.map(log => 
+                `<div class="debug-log-entry debug-log-${log.type}">
+                    <strong>[${log.time}]</strong> ${log.message}
+                </div>`
+            ).join('');
+            
+            // 最新のログまでスクロール
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+        }
+
+        // デバッグログのコピー
+        async function copyDebugLogs() {
+            const logText = debugLogs.map(log => 
+                `[${log.time}] ${log.type.toUpperCase()}: ${log.message}`
+            ).join('\n');
+            
+            try {
+                await navigator.clipboard.writeText(logText);
+                debugLog('ログをクリップボードにコピーしました', 'success');
+            } catch (err) {
+                debugLog('ログのコピーに失敗しました: ' + err.message, 'error');
+            }
+        }
+
+        // デバッグログのクリア
+        function clearDebugLogs() {
+            debugLogs = [];
+            updateDebugDisplay();
+            debugLog('ログをクリアしました', 'info');
+        }
+
+        // データのエクスポート
+        function exportData() {
+            if (prompts.length === 0) {
+                alert('エクスポートするデータがありません');
+                return;
+            }
+
+            const exportData = {
+                prompts: prompts,
+                tags: Array.from(allTags),
+                exportDate: new Date().toISOString()
+            };
+
+            const dataStr = JSON.stringify(exportData, null, 2);
+            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+            const url = URL.createObjectURL(dataBlob);
+            
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `novel_ai_prompts_backup_${new Date().toISOString().split('T')[0]}.json`;
+            link.click();
+            
+            URL.revokeObjectURL(url);
+            showNotification('データをエクスポートしました！');
+        }
+
+        // データのインポート
+        function importData() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const importedData = JSON.parse(e.target.result);
+                        
+                        if (importedData.prompts && Array.isArray(importedData.prompts)) {
+                            prompts = [...importedData.prompts, ...prompts];
+                            
+                            if (importedData.tags && Array.isArray(importedData.tags)) {
+                                importedData.tags.forEach(tag => allTags.add(tag));
+                            }
+                            
+                            savePrompts();
+                            displayPrompts();
+                            updateStats();
+                            updateTagsDisplay();
+                            showNotification(`${importedData.prompts.length}個のプロンプトをインポートしました！`);
+                        } else {
+                            alert('無効なファイル形式です');
+                        }
+                    } catch (err) {
+                        alert('ファイルの読み込みに失敗しました');
+                    }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        }
+
+        // 全データの削除
+        function clearAll() {
+            if (!confirm('全てのプロンプトを削除しますか？この操作は取り消せません。')) return;
+            
+            prompts = [];
+            allTags.clear();
+            currentTags.clear();
+            savePrompts();
+            displayPrompts();
+            updateStats();
+            updateTagsDisplay();
+            showNotification('全てのプロンプトを削除しました');
+        }
+
+        // データの保存（localStorage + Firebase統合）
+        async function savePrompts() {
+            const saveData = {
+                prompts: prompts,
+                tags: Array.from(allTags)
+            };
+            debugLog(`統合保存実行: プロンプト${prompts.length}件、タグ${allTags.size}個`, 'info');
+            
+            // 1. localStorage保存（バックアップ）
+            try {
+                localStorage.setItem('novel_ai_prompts', JSON.stringify(saveData));
+                debugLog('localStorage保存成功', 'success');
+            } catch (err) {
+                debugLog('localStorage保存エラー: ' + err.message, 'error');
+            }
+            
+            // 2. Firebase保存（メイン）
+            try {
+                if (window.firebaseTest && window.firebaseTest.getCurrentUser()) {
+                    const user = window.firebaseTest.getCurrentUser();
+                    
+                    // 各プロンプトを個別に保存
+                    for (const prompt of prompts) {
+                        const promptRef = window.firebaseTest.ref(window.firebaseTest.database, `users/${user.uid}/novel_ai_prompts/${prompt.id}`);
+                        await window.firebaseTest.set(promptRef, prompt);
+                    }
+                    
+                    debugLog('Firebase保存成功: ' + prompts.length + '件', 'success');
+                } else {
+                    debugLog('⚠️ Firebase未接続または未ログイン - Firebase保存スキップ', 'info');
+                }
+            } catch (error) {
+                debugLog('Firebase保存エラー: ' + error.message, 'error');
+                console.error('❌ Firebase保存エラー:', error.message);
+            }
+        }
+
+        // データの読み込み（localStorage）
+        // Novel AIプロンプト読み込み（localStorage + Firebase統合）
+        async function loadPrompts() {
+            debugLog('=== Novel AIプロンプト読み込み開始 ===', 'info');
+            
+            // 1. localStorage読み込み
+            let localPrompts = [];
+            const saved = localStorage.getItem('novel_ai_prompts');
+            if (saved) {
+                debugLog('localStorage からデータ発見', 'info');
+                try {
+                    const data = JSON.parse(saved);
+                    if (data.prompts) {
+                        localPrompts = data.prompts;
+                        debugLog(`localStorage プロンプト読み込み: ${localPrompts.length}件`, 'success');
+                    }
+                    if (data.tags) {
+                        allTags = new Set(data.tags);
+                    }
+                } catch (err) {
+                    console.error('localStorage読み込みエラー:', err);
+                    debugLog('localStorage読み込みエラー: ' + err.message, 'error');
+                }
+            }
+            
+            // 2. Firebase読み込み
+            let firebasePrompts = [];
+            try {
+                if (window.firebaseTest && window.firebaseTest.getCurrentUser()) {
+                    const user = window.firebaseTest.getCurrentUser();
+                    const promptsRef = window.firebaseTest.ref(window.firebaseTest.database, `users/${user.uid}/novel_ai_prompts`);
+                    const snapshot = await window.firebaseTest.get(promptsRef);
+                    
+                    if (snapshot.exists()) {
+                        const data = snapshot.val();
+                        firebasePrompts = Object.values(data).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                        debugLog(`Firebase プロンプト読み込み: ${firebasePrompts.length}件`, 'success');
+                    } else {
+                        debugLog('Firebase にデータなし', 'info');
+                    }
+                } else {
+                    debugLog('⚠️ Firebase未接続または未ログイン - Novel AI読み込みスキップ', 'info');
+                }
+            } catch (error) {
+                console.error('❌ Firebase読み込みエラー:', error.message);
+                debugLog('Firebase読み込みエラー: ' + error.message, 'error');
+            }
+            
+            // 3. データ統合（Firebase優先、localStorageはバックアップ）
+            if (firebasePrompts.length > 0) {
+                prompts = firebasePrompts;
+                debugLog('Firebase データを使用', 'info');
+            } else if (localPrompts.length > 0) {
+                prompts = localPrompts;
+                debugLog('localStorage データを使用（Firebase移行が必要）', 'warn');
+                
+                // 🔄 初回移行: localStorageデータをFirebaseに移行
+                if (window.firebaseTest && window.firebaseTest.getCurrentUser()) {
+                    debugLog('localStorage → Firebase 移行開始', 'info');
+                    try {
+                        const user = window.firebaseTest.getCurrentUser();
+                        for (const prompt of localPrompts) {
+                            const promptRef = window.firebaseTest.ref(window.firebaseTest.database, `users/${user.uid}/novel_ai_prompts/${prompt.id}`);
+                            await window.firebaseTest.set(promptRef, prompt);
+                        }
+                        debugLog(`Firebase移行完了: ${localPrompts.length}件`, 'success');
+                    } catch (error) {
+                        debugLog('Firebase移行エラー: ' + error.message, 'error');
+                    }
+                }
+            } else {
+                prompts = [];
+                debugLog('データなし（Firebase・localStorage共に空）', 'info');
+            }
+            
+            // 4. データ構造の正規化
+            prompts.forEach(prompt => {
+                if (typeof prompt.timestamp === 'string') {
+                    prompt.timestamp = new Date(prompt.timestamp);
+                }
+                // 古いデータ構造との互換性
+                if (!prompt.character1) {
+                    prompt.character1 = '';
+                    prompt.character2 = '';
+                    prompt.character3to6 = '';
+                    prompt.mainPrompt = prompt.content || '';
+                }
+                if (!prompt.tags) {
+                    prompt.tags = [];
+                }
+                // タイトルフィールドの追加（V0.21以降）
+                if (!prompt.title) {
+                    prompt.title = prompt.mainPrompt ? 
+                        truncateText(prompt.mainPrompt, 30) : '無題';
+                }
+            });
+            
+            debugLog(`=== Novel AIプロンプト読み込み完了: ${prompts.length}件 ===`, 'success');
+            debugLog(`データ統合結果: Firebase=${firebasePrompts.length}件, localStorage=${localPrompts.length}件`, 'info');
+            console.log('🔍 NOVEL AI DEBUG:', {
+                firebaseCount: firebasePrompts.length,
+                localStorageCount: localPrompts.length,
+                finalCount: prompts.length,
+                user: window.firebaseTest?.getCurrentUser()?.email
+            });
+        }
+
+        // 日時のフォーマット
+        function formatDateTime(date) {
+            const d = new Date(date);
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const hour = String(d.getHours()).padStart(2, '0');
+            const minute = String(d.getMinutes()).padStart(2, '0');
+            return `${year}/${month}/${day} ${hour}:${minute}`;
+        }
+
+        // 通知の表示
+        function showNotification(message) {
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #4CAF50;
+                color: white;
+                padding: 15px 20px;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+                z-index: 1000;
+                animation: slideIn 0.3s ease;
+                max-width: 300px;
+            `;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+
+        // アニメーション用CSS（動的に追加）
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn {
+                from { transform: translateX(100%); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+        `;
+        document.head.appendChild(style);
+        
+        // 削除済み - 統一初期化処理に集約
+    </script>
+    
+    <!-- 旧初期化処理削除済み - v0.98統合版 -->
+    <script>
+        // 旧初期化処理は上部のDOMContentLoadedに統合済み
+        // 重複削除完了
+    </script>
+    
+    <!-- 各機能のスクリプト -->
+    <script>
+        // 古いコード削除済み - 各機能スクリプト開始
+    </script>
+    
+    <!-- 機能別スクリプト：課題リスト管理 -->
+    <script>
+        // 📋 課題リスト管理機能
+        // 古いコード削除 - 正常な部分まで待機
+    </script>
+    
+    <!-- 正常なスクリプト部分開始 -->
+    <script>
+        // 課題リスト管理機能は下部に移動済み
+    </script>
+    
+    <!-- 課題リスト管理機能 -->
+    <script>
+        // 古いコード断片削除完了 - 正常な課題リスト管理機能は下部に移動済み
+    </script>
+    
+    <script>
+        // 削除完了 - 正常な課題リスト機能は以下に存在
+    </script>
+    
+    <script>
+        // 📋 課題リスト管理機能 (正常版)
+        let issuesList = [];
+        window.issuesList = issuesList;
+        
+        console.log('✅ 課題リスト初期化完了');
+    </script>
+    
+    <script>
+                console.log('✅ Claude Codeタブ追加完了');
+            }
+            
+            // Step2: タブ切り替え機能の初期化と復元
+            setTimeout(() => {
+                const savedTab = localStorage.getItem('currentTab') || 'yarakashi';
+                console.log(`🔄 タブ状態復元: ${savedTab}`);
+                
+                // 全てのタブボタンとコンテンツを確認
+                const tabButtons = document.querySelectorAll('.tab-button');
+                const tabContents = document.querySelectorAll('.tab-content');
+                
+                console.log(`🔍 タブボタン数: ${tabButtons.length}, コンテンツ数: ${tabContents.length}`);
+                
+                if (tabButtons.length > 0 && tabContents.length > 0) {
+                    window.switchTab(savedTab);
+                    console.log('✅ タブ復元完了');
+                } else {
+                    console.error('❌ タブ要素が見つかりません');
+                }
+            }, 200);
+            
+            console.log('🚀 統合管理アプリ初期化完了（v0.95）');
+        });
+        
+        // 📋 課題リスト管理機能
+        let issuesList = [];
+        window.issuesList = issuesList;
+        
+        window.addIssue = async function() {
+            try {
+                const title = document.getElementById('issue-title').value.trim();
+                const priority = document.getElementById('issue-priority').value;
+                const project = document.getElementById('issue-project').value;
+                const content = document.getElementById('issue-content').value.trim();
+                
+                if (!title || !content) {
+                    alert('タイトルと詳細を入力してください');
+                    return;
+                }
+                
+                const issue = {
+                    id: `issue_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+                    title: title,
+                    priority: priority,
+                    project: project,
+                    content: content,
+                    status: 'open',
+                    timestamp: new Date().toISOString()
+                };
+                
+                if (window.firebaseTest && window.firebaseTest.getCurrentUser()) {
+                    const user = window.firebaseTest.getCurrentUser();
+                    const issueRef = window.firebaseTest.ref(window.firebaseTest.database, `users/${user.uid}/issues_list/${issue.id}`);
+                    await window.firebaseTest.set(issueRef, issue);
+                }
+                
+                issuesList.push(issue);
+                displayIssuesList();
+                
+                // フォームクリア
+                document.getElementById('issue-title').value = '';
+                document.getElementById('issue-content').value = '';
+                
+                console.log('✅ 課題追加完了:', issue.title);
+                
+            } catch (error) {
+                console.error('❌ 課題追加エラー:', error.message);
+                alert('❌ 課題追加エラー: ' + error.message);
+            }
+        };
+        
+        window.loadIssuesList = async function() {
+            try {
+                if (!window.firebaseTest || !window.firebaseTest.getCurrentUser()) {
+                    console.log('⚠️ Firebase未接続または未ログイン - 課題リスト読み込みスキップ');
+                    return;
+                }
+                
+                console.log('📖 課題リスト読み込み開始');
+                const user = window.firebaseTest.getCurrentUser();
+                const issuesRef = window.firebaseTest.ref(window.firebaseTest.database, `users/${user.uid}/issues_list`);
+                const snapshot = await window.firebaseTest.get(issuesRef);
+                
+                if (snapshot.exists()) {
+                    const data = snapshot.val();
+                    issuesList = Object.values(data).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                    window.issuesList = issuesList;
+                    console.log('✅ 課題リスト読み込み成功:', issuesList.length, '件');
+                } else {
+                    issuesList = [];
+                    window.issuesList = issuesList;
+                    console.log('📭 課題リストなし');
+                }
+                
+                displayIssuesList();
+                
+            } catch (error) {
+                console.error('❌ 課題リスト読み込みエラー:', error.message);
+            }
+        };
+        
+        // 課題リスト表示機能とその他のヘルパー関数
+        function displayIssuesList(searchQuery = '') {
+            console.log('🖼️ displayIssuesList開始');
+            
+            const listContainer = document.getElementById('issue-list');
+            if (!listContainer) return;
+            
+            // 🔍 検索フィルタリング（共通関数使用）
+            let filteredIssuesList = window.universalSearch(issuesList, searchQuery, ['title', 'content', 'project']);
+            
+            if (filteredIssuesList.length === 0) {
+                listContainer.innerHTML = searchQuery ? 
+                    `<div style="text-align: center; padding: 20px; color: #666;">「${searchQuery}」に一致する課題が見つかりません</div>` :
+                    '<div style="text-align: center; padding: 20px; color: #666;">課題リストは空です</div>';
+                return;
+            }
+            
+            const priorityColors = { 'high': '#f44336', 'medium': '#FF9800', 'low': '#4CAF50' };
+            const priorityLabels = { 'high': '🔥 高', 'medium': '📋 中', 'low': '💤 低' };
+            const projectLabels = { 'novel-ai': '🎨 Novel AI', 'yarakashi': '🚨 やらかし管理', 'claude-code': '💻 Claude Code', 'other': '🔧 その他' };
+            
+            const html = filteredIssuesList.map(issue => {
+                const escapeHtml = (text) => text.replace(/[&<>"'`]/g, char => `&#${char.charCodeAt(0)};`);
+                const firstLine = issue.content.split('\n')[0];
+                const statusButton = issue.status === 'open' ? 
+                    `<button onclick="resolveIssue('${issue.id}')" style="background: #4CAF50; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer;">完了</button>` : 
+                    `<button onclick="reopenIssue('${issue.id}')" style="background: #FF9800; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer;">再オープン</button>`;
+                
+                return `<div class="issue-item" style="background: white; border-radius: 10px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid ${priorityColors[issue.priority]};">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <div style="font-size: 1.1rem; font-weight: 600; color: #333;">${escapeHtml(issue.title)}</div>
+                        <div style="font-size: 11px; color: #999;">${issue.content.split('\n').length}行 | ${issue.content.length}文字</div>
+                    </div>
+                    <div style="font-size: 14px; color: #666; margin-bottom: 8px;">
+                        📅 ${new Date(issue.timestamp).toLocaleDateString('ja-JP')} 
+                        ${priorityLabels[issue.priority]} | ${projectLabels[issue.project]}
+                        ${issue.status === 'closed' ? '✅ 完了済み' : '🔄 オープン'}
+                    </div>
+                    <div style="color: #666; font-size: 14px; margin: 8px 0;">
+                        ${escapeHtml(firstLine)}${issue.content.split('\n').length > 1 ? ' ...' : ''}
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <button onclick="toggleIssueContent('${issue.id}')" style="background: #2196F3; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; margin-right: 5px;">
+                            <span id="toggle-text-${issue.id}">詳細表示</span>
+                        </button>
+                        ${statusButton}
+                        <button onclick="deleteIssue('${issue.id}')" style="background: #f44336; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; margin-left: 5px;">削除</button>
+                    </div>
+                    <div id="full-content-${issue.id}" style="display: none; margin-top: 10px; padding: 10px; background: #f9f9f9; border-radius: 6px; font-size: 14px;">
+                        ${escapeHtml(issue.content).replace(/\n/g, '<br>')}
+                    </div>
+                </div>`;
+            }).join('');
+            
+            listContainer.innerHTML = html;
+        }
+        
+        window.filterIssueList = function() {
+            const searchInput = document.getElementById('issue-search');
+            const searchQuery = searchInput ? searchInput.value.trim() : '';
+            displayIssuesList(searchQuery);
+        };
+        
+        window.toggleIssueContent = function(itemId) {
+            const fullContentElement = document.getElementById(`full-content-${itemId}`);
+            const toggleTextElement = document.getElementById(`toggle-text-${itemId}`);
+            
+            if (fullContentElement && toggleTextElement) {
+                const isHidden = fullContentElement.style.display === 'none';
+                fullContentElement.style.display = isHidden ? 'block' : 'none';
+                toggleTextElement.textContent = isHidden ? '詳細非表示' : '詳細表示';
+            }
+        };
+        
+        window.resolveIssue = async function(id) { await updateIssueStatus(id, 'closed'); };
+        window.reopenIssue = async function(id) { await updateIssueStatus(id, 'open'); };
+        
+        async function updateIssueStatus(id, status) {
+            try {
+                const issue = issuesList.find(i => i.id == id);
+                if (!issue) return;
+                
+                issue.status = status;
+                
+                if (window.firebaseTest && window.firebaseTest.getCurrentUser()) {
+                    const user = window.firebaseTest.getCurrentUser();
+                    const issueRef = window.firebaseTest.ref(window.firebaseTest.database, `users/${user.uid}/issues_list/${id}`);
+                    await window.firebaseTest.set(issueRef, issue);
+                }
+                
+                displayIssuesList();
+                console.log('✅ 課題ステータス更新:', status);
+                
+            } catch (error) {
+                console.error('❌ 課題ステータス更新エラー:', error.message);
+                alert('❌ ステータス更新エラー: ' + error.message);
+            }
+        }
+        
+        window.deleteIssue = async function(id) {
+            if (!confirm('この課題を削除してもよろしいですか？')) return;
+            
+            try {
+                if (window.firebaseTest && window.firebaseTest.getCurrentUser()) {
+                    const user = window.firebaseTest.getCurrentUser();
+                    const issueRef = window.firebaseTest.ref(window.firebaseTest.database, `users/${user.uid}/issues_list/${id}`);
+                    await window.firebaseTest.set(issueRef, null);
+                }
+                
+                issuesList = issuesList.filter(i => i.id !== id);
+                window.issuesList = issuesList;
+                displayIssuesList();
+                console.log('✅ 課題削除完了');
+                
+            } catch (error) {
+                console.error('❌ 課題削除エラー:', error.message);
+                alert('❌ 削除エラー: ' + error.message);
+            }
+        };
+        
+        // Claude Code プロンプト管理機能
+        let claudePrompts = [];
+        window.claudePrompts = claudePrompts;
+        
+        window.loadClaudePrompts = async function() {
+            try {
+                if (!window.firebaseTest || !window.firebaseTest.getCurrentUser()) {
+                    console.log('⚠️  ログインしていません');
+                    return;
+                }
+                
+                console.log('📖 Claude プロンプト読み込み開始');
+                const user = window.firebaseTest.getCurrentUser();
+                const promptsRef = window.firebaseTest.ref(window.firebaseTest.database, `users/${user.uid}/claude_prompts`);
+                const snapshot = await window.firebaseTest.get(promptsRef);
+                
+                if (snapshot.exists()) {
+                    const data = snapshot.val();
+                    claudePrompts = Object.values(data).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                    window.claudePrompts = claudePrompts;
+                    console.log('✅ Claude プロンプト読み込み成功:', claudePrompts.length, '件');
+                } else {
+                    claudePrompts = [];
+                    window.claudePrompts = claudePrompts;
+                    console.log('📭 Claude プロンプトなし');
+                }
+                
+                displayClaudePrompts();
+                
+            } catch (error) {
+                console.error('❌ Claude プロンプト読み込みエラー:', error.message);
+            }
+        };
+        
+        window.addClaudePrompt = async function() {
+            try {
+                const prompt = document.getElementById('claude-prompt').value.trim();
+                const category = document.getElementById('claude-category').value;
+                
+                if (!prompt) {
+                    alert('プロンプトを入力してください');
+                    return;
+                }
+                
+                const claudePrompt = {
+                    id: `claude_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+                    prompt,
+                    category,
+                    timestamp: new Date().toISOString(),
+                    useCount: 0
+                };
+                
+                console.log('💻 Claude プロンプト追加開始:', category);
+                
+                if (window.firebaseTest && window.firebaseTest.getCurrentUser()) {
+                    const user = window.firebaseTest.getCurrentUser();
+                    const promptRef = window.firebaseTest.ref(window.firebaseTest.database, `users/${user.uid}/claude_prompts/${claudePrompt.id}`);
+                    await window.firebaseTest.set(promptRef, claudePrompt);
+                    console.log('✅ Firebase保存成功');
+                }
+                
+                claudePrompts.push(claudePrompt);
+                document.getElementById('claude-prompt').value = '';
+                displayClaudePrompts();
+                console.log('✅ Claude プロンプト追加完了');
+                
+            } catch (error) {
+                console.error('❌ Claude プロンプト追加エラー:', error.message);
+                alert('エラー: ' + error.message);
+            }
+        };
+        
+        function displayClaudePrompts(searchQuery = '') {
+            console.log('🖼️ displayClaudePrompts開始, searchQuery:', searchQuery);
+            const listContainer = document.getElementById('claude-prompt-list');
+            const totalCountElement = document.getElementById('claude-total-count');
+            const searchResultElement = document.getElementById('claude-search-result');
+            
+            console.log('🔍 listContainer:', listContainer);
+            console.log('🔍 claudePrompts.length:', claudePrompts.length);
+            console.log('🔍 claudePrompts構造:', claudePrompts.map(p => ({ id: p.id, hasContent: !!p.content, hasCategory: !!p.category, keys: Object.keys(p) })));
+            
+            if (!listContainer) {
+                console.error('❌ claude-prompt-list要素が見つかりません');
+                return;
+            }
+            
+            // 🔍 検索フィルタリング（共通関数使用）
+            let filteredPrompts = window.universalSearch(claudePrompts, searchQuery, ['prompt', 'category']);
+            
+            // 📊 検索結果表示更新
+            if (totalCountElement) totalCountElement.textContent = filteredPrompts.length;
+            if (searchResultElement) {
+                searchResultElement.innerHTML = searchQuery ? 
+                    `検索結果: <span style="color: #7B68EE; font-weight: bold;">${filteredPrompts.length}</span> 件 / 全 ${claudePrompts.length} 件` :
+                    `全 <span id="claude-total-count">${claudePrompts.length}</span> 件`;
+            }
+            
+            if (filteredPrompts.length === 0) {
+                const message = searchQuery ? 
+                    `<div style="text-align: center; padding: 20px; color: #666;">「${searchQuery}」に一致するプロンプトが見つかりません</div>` :
+                    '<div style="text-align: center; padding: 20px; color: #666;">Claude Codeプロンプトリストは空です</div>';
+                listContainer.innerHTML = message;
+                return;
+            }
+            
+            const html = filteredPrompts.map(prompt => `
+                <div style="background: white; border-radius: 10px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid #7B68EE;">
+                    <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 10px;">
+                        <span style="background: #7B68EE; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.8em;">${prompt.category}</span>
+                        <span style="color: #666; font-size: 0.9em;">${new Date(prompt.timestamp).toLocaleDateString('ja-JP')} 使用回数: ${prompt.useCount}</span>
+                    </div>
+                    <div style="white-space: pre-wrap; line-height: 1.5; margin-bottom: 10px;">${prompt.prompt}</div>
+                    <div>
+                        <button onclick="copyClaudePrompt('${prompt.id}')" style="background: #4CAF50; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; margin-right: 5px;">📋 コピー</button>
+                        <button onclick="deleteClaudePrompt('${prompt.id}')" style="background: #f44336; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer;">🗑️ 削除</button>
+                    </div>
+                </div>
+            `).join('');
+            
+            listContainer.innerHTML = html;
+        }
+        
+        // 🔍 Claude プロンプト検索フィルタリング機能
+        window.filterClaudePrompts = function() {
+            console.log('🔍 filterClaudePrompts実行開始');
+            const searchInput = document.getElementById('claude-search');
+            const searchQuery = searchInput ? searchInput.value.trim() : '';
+            console.log('🔍 検索クエリ:', searchQuery);
+            console.log('🔍 Claude プロンプト総数:', claudePrompts.length);
+            displayClaudePrompts(searchQuery);
+        };
+        
+        // 検索クリア機能
+        window.clearClaudeSearch = function() {
+            const searchInput = document.getElementById('claude-search');
+            if (searchInput) {
+                searchInput.value = '';
+                displayClaudePrompts('');
+            }
+        };
+        
+        // やらかし管理検索クリア機能
+        window.clearYarakashiSearch = function() {
+            const searchInput = document.getElementById('yarakashi-search');
+            if (searchInput) {
+                searchInput.value = '';
+                displayYarakashiList('');
+            }
+        };
+        
+        // 課題リスト検索クリア機能
+        window.clearIssueSearch = function() {
+            const searchInput = document.getElementById('issue-search');
+            if (searchInput) {
+                searchInput.value = '';
+                displayIssuesList('');
+            }
+        };
+        
+        window.copyClaudePrompt = async function(id) {
+            const prompt = claudePrompts.find(p => p.id == id);
+            if (!prompt) return;
+            
+            try {
+                await navigator.clipboard.writeText(prompt.prompt);
+                
+                // 使用回数を増やす
+                prompt.useCount++;
+                if (window.firebaseTest && window.firebaseTest.getCurrentUser()) {
+                    const user = window.firebaseTest.getCurrentUser();
+                    const promptRef = window.firebaseTest.ref(window.firebaseTest.database, `users/${user.uid}/claude_prompts/${id}`);
+                    await window.firebaseTest.set(promptRef, prompt);
+                }
+                
+                displayClaudePrompts();
+                console.log('📋 プロンプトコピー完了:', prompt.category);
+                
+                // 通知表示
+                showNotification('プロンプトをコピーしました！');
+                
+            } catch (error) {
+                alert('コピーに失敗しました');
+                console.error('❌ コピーエラー:', error.message);
+            }
+        };
+        
+        window.deleteClaudePrompt = async function(id) {
+            if (!confirm('このプロンプトを削除しますか？')) return;
+            
+            try {
+                claudePrompts = claudePrompts.filter(p => p.id != id);
+                
+                if (window.firebaseTest && window.firebaseTest.getCurrentUser()) {
+                    const user = window.firebaseTest.getCurrentUser();
+                    const promptRef = window.firebaseTest.ref(window.firebaseTest.database, `users/${user.uid}/claude_prompts/${id}`);
+                    await window.firebaseTest.set(promptRef, null);
+                }
+                
+                displayClaudePrompts();
+                console.log('✅ プロンプト削除完了');
+                
+            } catch (error) {
+                console.error('❌ プロンプト削除エラー:', error.message);
+            }
+        };
+    </script>
+</body>
+</html>
