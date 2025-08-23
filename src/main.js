@@ -9,6 +9,31 @@ let mainWindow;
 let tray;
 let isWindowVisible = true;
 
+// Webアプリ読み込み関数
+function loadWebApp() {
+    if (config.webapp.type === 'external') {
+        // 外部URL（開発サーバー等）を読み込み
+        console.log('Loading external webapp:', config.webapp.external_url);
+        mainWindow.loadURL(config.webapp.external_url).catch(error => {
+            console.error('External URL failed, falling back to local:', error);
+            loadLocalWebApp();
+        });
+    } else {
+        // ローカルファイルを読み込み
+        loadLocalWebApp();
+    }
+}
+
+function loadLocalWebApp() {
+    console.log('Loading local webapp:', config.webapp.url);
+    mainWindow.loadFile(path.join(__dirname, config.webapp.url)).catch(error => {
+        console.error('Local file failed, trying fallback:', error);
+        if (config.webapp.fallback_url) {
+            mainWindow.loadFile(path.join(__dirname, config.webapp.fallback_url));
+        }
+    });
+}
+
 function createWindow() {
     // 設定ファイルからウィンドウ設定を読み込み
     mainWindow = new BrowserWindow({
@@ -26,8 +51,8 @@ function createWindow() {
         }
     });
 
-    // 設定ファイルからWebアプリURLを読み込み
-    mainWindow.loadFile(path.join(__dirname, config.webapp_url));
+    // Webアプリの読み込み（URL or ローカルファイル）
+    loadWebApp();
     
     // 開発者ツール（設定による）
     if (config.development.devTools) {
@@ -82,6 +107,15 @@ function createTray() {
         },
         { type: 'separator' },
         {
+            label: 'Switch to External App',
+            click: () => switchWebApp('external')
+        },
+        {
+            label: 'Switch to Local App',
+            click: () => switchWebApp('local')
+        },
+        { type: 'separator' },
+        {
             label: 'Exit',
             click: () => {
                 app.isQuiting = true;
@@ -115,6 +149,15 @@ function toggleWindow() {
         hideWindow();
     } else {
         showWindow();
+    }
+}
+
+// Webアプリ切り替え関数（ゼロメンテナンス対応）
+function switchWebApp(type) {
+    if (mainWindow) {
+        config.webapp.type = type;
+        console.log('Switching webapp to:', type);
+        loadWebApp();
     }
 }
 

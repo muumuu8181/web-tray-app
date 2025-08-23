@@ -8,12 +8,17 @@
     "alwaysOnTop": true,
     "frame": true
   },
-  "webapp_url": "./renderer/index.html",
-  "fallback_url": "../novel-ai.html",
+  "webapp": {
+    "type": "local",
+    "url": "./renderer/index.html",
+    "external_url": "http://localhost:3000",
+    "fallback_url": "../novel-ai.html"
+  },
   "tray": {
     "tooltip": "Claude Code Helper v1.02"
   },
   "development": {
-    "devTools": true
+    "devTools": true,
+    "auto_reload": true
   }
 }
