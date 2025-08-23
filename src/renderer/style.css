@@ -9,7 +9,7 @@ body {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
     width: 100%;  /* 開発時は画面幅に合わせる */
-    min-width: 900px; /* 最小幅を確保 */
+    min-width: 300px; /* 最小幅を確保 */
     height: 800px;
     overflow: hidden;
     font-size: 14px; /* フォントサイズも大きく */
@@ -20,6 +20,27 @@ body {
     padding: 8px;
     text-align: center;
     border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    position: relative;
+}
+
+.debug-toggle {
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 3px;
+    color: white;
+    font-size: 12px;
+    padding: 2px 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.debug-toggle:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-50%) scale(1.1);
 }
 
 .version {

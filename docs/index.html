@@ -3,14 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Claude Code Tray App v1.02</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Claude Code Helper - Web版</title>
+    <link rel="stylesheet" href="../src/renderer/style.css">
+    <style>
+        /* Web版追加スタイル */
+        body {
+            min-width: 300px;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        
+        .web-info {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            font-size: 12px;
+            text-align: center;
+        }
+        
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+                min-width: auto;
+            }
+        }
+    </style>
 </head>
 <body>
+    <div class="web-info">
+        📱 Web版 - タブレット・スマホ対応 | 🔧デバッグボタンでコンソール表示
+    </div>
+    
     <div class="header">
         <button class="debug-toggle" onclick="toggleDevTools()">🔧</button>
         <div>Claude Code Helper</div>
-        <div class="version">v1.02</div>
+        <div class="version">Web v1.0</div>
     </div>
 
     <div class="tabs">
@@ -69,6 +99,6 @@
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <script src="../src/renderer/script.js"></script>
 </body>
 </html>

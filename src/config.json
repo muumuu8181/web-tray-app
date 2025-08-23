@@ -1,8 +1,8 @@
 {
   "window": {
-    "width": 900,
+    "width": 300,
     "height": 800,
-    "x": 1020,
+    "x": 1620,
     "y": 50,
     "resizable": true,
     "alwaysOnTop": true,
@@ -18,7 +18,7 @@
     "tooltip": "Claude Code Helper v1.02"
   },
   "development": {
-    "devTools": true,
+    "devTools": false,
     "auto_reload": true
   }
 }

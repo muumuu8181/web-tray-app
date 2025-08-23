@@ -28,22 +28,47 @@ function copyToClipboard(promptType) {
     
     try {
         // Electron環境でのクリップボード操作
-        const { clipboard } = window.require('electron');
-        clipboard.writeText(text);
-        showNotification('✅ クリップボードにコピーしました: ' + promptType);
-        console.log('✅ Copied to clipboard:', promptType, 'Text:', text.substring(0, 50) + '...');
-    } catch (error) {
-        console.error('❌ Clipboard error:', error);
-        showNotification('❌ コピーに失敗しました');
-        
-        // フォールバック: navigator.clipboard
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(text).then(() => {
-                showNotification('✅ クリップボードにコピーしました (fallback): ' + promptType);
-            }).catch(() => {
-                showNotification('❌ コピーに完全に失敗しました');
-            });
+        if (typeof window.require !== 'undefined') {
+            const { clipboard } = window.require('electron');
+            clipboard.writeText(text);
+            showNotification('✅ クリップボードにコピーしました: ' + promptType);
+            console.log('✅ Copied to clipboard:', promptType, 'Text:', text.substring(0, 50) + '...');
+            return;
         }
+    } catch (error) {
+        console.error('❌ Electron clipboard error:', error);
+    }
+    
+    // Web版クリップボード操作
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(() => {
+            showNotification('✅ クリップボードにコピーしました: ' + promptType);
+            console.log('✅ Web clipboard copied:', promptType);
+        }).catch(() => {
+            fallbackCopyToClipboard(text, promptType);
+        });
+    } else {
+        fallbackCopyToClipboard(text, promptType);
+    }
+}
+
+// フォールバックコピー（Web版用）
+function fallbackCopyToClipboard(text, promptType) {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.cssText = 'position:fixed;left:-999px;top:-999px;';
+    document.body.appendChild(textArea);
+    textArea.select();
+    
+    try {
+        document.execCommand('copy');
+        showNotification('✅ クリップボードにコピーしました (Web): ' + promptType);
+        console.log('✅ Fallback copy successful:', promptType);
+    } catch (err) {
+        showNotification('❌ コピーできません。手動でコピーしてください');
+        console.error('❌ All clipboard methods failed');
+    } finally {
+        document.body.removeChild(textArea);
     }
 }
 
@@ -61,23 +86,30 @@ function quickAction(action) {
     button.classList.add('clicked');
     setTimeout(() => button.classList.remove('clicked'), 600);
     
+    const text = actions[action];
+    
     try {
-        const { clipboard } = window.require('electron');
-        clipboard.writeText(actions[action]);
-        showNotification('✅ ' + action + ' コマンドをコピーしました');
-        console.log('✅ Quick action copied:', action, 'Command:', actions[action]);
-    } catch (error) {
-        console.error('❌ Quick action error:', error);
-        showNotification('❌ コピーに失敗しました');
-        
-        // フォールバック: navigator.clipboard
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(actions[action]).then(() => {
-                showNotification('✅ ' + action + ' コマンドをコピーしました (fallback)');
-            }).catch(() => {
-                showNotification('❌ コピーに完全に失敗しました');
-            });
+        // Electron環境
+        if (typeof window.require !== 'undefined') {
+            const { clipboard } = window.require('electron');
+            clipboard.writeText(text);
+            showNotification('✅ ' + action + ' コマンドをコピーしました');
+            console.log('✅ Quick action copied:', action, 'Command:', text);
+            return;
         }
+    } catch (error) {
+        console.error('❌ Electron quick action error:', error);
+    }
+    
+    // Web版
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(() => {
+            showNotification('✅ ' + action + ' コマンドをコピーしました');
+        }).catch(() => {
+            fallbackCopyToClipboard(text, action);
+        });
+    } else {
+        fallbackCopyToClipboard(text, action);
     }
 }
 
@@ -141,6 +173,110 @@ function showNotification(message) {
             document.head.removeChild(style);
         }
     }, 3000);
+}
+
+// デバッグモード切り替え（Web版対応）
+function toggleDevTools() {
+    // Electronアプリの場合
+    if (typeof window.require !== 'undefined') {
+        try {
+            const { webContents } = window.require('electron').remote.getCurrentWindow();
+            if (webContents.isDevToolsOpened()) {
+                webContents.closeDevTools();
+            } else {
+                webContents.openDevTools();
+            }
+            return;
+        } catch (error) {
+            try {
+                const { ipcRenderer } = window.require('electron');
+                ipcRenderer.send('toggle-devtools');
+                return;
+            } catch (e) {
+                // Electron API失敗時はWeb版として扱う
+            }
+        }
+    }
+    
+    // Web版の場合：デバッグコンソール表示切り替え
+    toggleWebDebugMode();
+}
+
+// Web版デバッグモード
+function toggleWebDebugMode() {
+    const isDebugMode = localStorage.getItem('webDebugMode') === 'true';
+    
+    if (isDebugMode) {
+        localStorage.setItem('webDebugMode', 'false');
+        hideDebugConsole();
+        showNotification('🔧 デバッグモード: OFF');
+    } else {
+        localStorage.setItem('webDebugMode', 'true');
+        showDebugConsole();
+        showNotification('🔧 デバッグモード: ON (F12でブラウザDevTools)');
+    }
+}
+
+// デバッグコンソール表示
+function showDebugConsole() {
+    let debugConsole = document.getElementById('web-debug-console');
+    if (!debugConsole) {
+        debugConsole = document.createElement('div');
+        debugConsole.id = 'web-debug-console';
+        debugConsole.style.cssText = `
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 150px;
+            background: rgba(0, 0, 0, 0.9);
+            color: #00ff00;
+            font-family: monospace;
+            font-size: 11px;
+            padding: 10px;
+            overflow-y: auto;
+            z-index: 9999;
+            border-top: 2px solid #00ff00;
+        `;
+        debugConsole.innerHTML = `
+            <div style="color: #00ff00; margin-bottom: 5px;">🔧 Web Debug Console - F12でブラウザDevToolsも開けます</div>
+            <div id="debug-log"></div>
+        `;
+        document.body.appendChild(debugConsole);
+    }
+    debugConsole.style.display = 'block';
+    
+    // コンソールログを捕獲
+    interceptConsoleLog();
+}
+
+// デバッグコンソール非表示
+function hideDebugConsole() {
+    const debugConsole = document.getElementById('web-debug-console');
+    if (debugConsole) {
+        debugConsole.style.display = 'none';
+    }
+}
+
+// コンソールログ捕獲
+function interceptConsoleLog() {
+    const originalLog = console.log;
+    const debugLog = document.getElementById('debug-log');
+    
+    if (debugLog && !window.logIntercepted) {
+        window.logIntercepted = true;
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            if (localStorage.getItem('webDebugMode') === 'true') {
+                const timestamp = new Date().toLocaleTimeString();
+                const message = args.map(arg => 
+                    typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+                ).join(' ');
+                debugLog.innerHTML += `<div style="margin: 2px 0;">[${timestamp}] ${message}</div>`;
+                debugLog.scrollTop = debugLog.scrollHeight;
+            }
+        };
+    }
 }
 
 // 初期化

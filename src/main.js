@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -160,6 +160,17 @@ function switchWebApp(type) {
         loadWebApp();
     }
 }
+
+// 開発者ツール切り替えIPC
+ipcMain.on('toggle-devtools', () => {
+    if (mainWindow) {
+        if (mainWindow.webContents.isDevToolsOpened()) {
+            mainWindow.webContents.closeDevTools();
+        } else {
+            mainWindow.webContents.openDevTools();
+        }
+    }
+});
 
 // アプリケーションの初期化
 app.whenReady().then(() => {
