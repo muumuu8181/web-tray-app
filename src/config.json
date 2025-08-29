@@ -9,9 +9,9 @@
     "frame": true
   },
   "webapp": {
-    "type": "local",
+    "type": "external",
     "url": "./renderer/index.html",
-    "external_url": "http://localhost:3000",
+    "external_url": "https://muumuu8181.github.io/2025-08-04-novel-ai-prompt-manager/",
     "fallback_url": "../novel-ai.html"
   },
   "tray": {
